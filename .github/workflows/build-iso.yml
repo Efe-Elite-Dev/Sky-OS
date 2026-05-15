@@ -14,9 +14,9 @@ jobs:
 
     - name: Run Advanced Archiso Builder
       run: |
-        # İzin sorunlarını önlemek için klasörleri önceden GitHub üzerinde açıyoruz
+        # Klasörleri kesin olarak oluştur ve herkese yazma izni ver
         mkdir -p ${{ github.workspace }}/iso-workspace ${{ github.workspace }}/output
-        chmod 777 ${{ github.workspace }}/output
+        chmod -R 777 ${{ github.workspace }}
 
         docker run --privileged --rm \
           -v ${{ github.workspace }}:/workspace \
@@ -106,12 +106,16 @@ jobs:
           LIGHTDM
 
           # 5. ULTIMATE ISO DERLEME AŞAMASI
-          # Çıktıyı doğrudan GitHub'ın görebileceği /workspace/output klasörüne yazdırıyoruz
+          # Çıktıyı doğrudan /workspace/output klasörüne zorluyoruz
           mkarchiso -v -w /workspace/iso-workspace -o /workspace/output /workspace/profile
+          
+          # Dosya izinlerini GitHub Actions okuyabilsin diye tekrar esnetiyoruz
+          chmod -R 777 /workspace/output
         "
 
-    - name: Upload Finished Ultimate ISO
+    - name: Upload Finished Ultimate ISO (Bul ve Yükle)
       uses: actions/upload-artifact@v4
       with:
         name: Ultimate-EXE-Linux-OS
-        path: ${{ github.workspace }}/output/*.iso
+        path: |
+          **/*.iso
