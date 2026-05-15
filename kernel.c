@@ -1,23 +1,27 @@
+#include "screen.h"
+#include "keyboard.h"
+
 void kernel_main(void) {
-    volatile char* video_memory = (volatile char*)0xB8000;
-    const char* message = "Sky-OS Saf AI Kernel Basariyla Baslatildi!";
-    char color = 0x0F; 
+    // Önce ekranı temizle ve başlat
+    sky_clear_screen();
+    
+    // Üstte şık bir başlık barı yapalım
+    sky_print("========================================================================\n");
+    sky_print("             Sky-OS Safe AI Kernel - Surucu Katmani Yuklendi!          \n");
+    sky_print("========================================================================\n\n");
+    
+    sky_print("[+] VGA Metin modu surucusu aktif edildi.\n");
+    sky_print("[+] Donanim kesme tablosu (IDT) yukleniyor...\n");
+    
+    // Klavyeyi ve kesme motorunu başlatıyoruz
+    init_keyboard();
+    
+    sky_print("[+] Klavye surucusu basariyla baglandi!\n");
+    sky_print("[+] Sky-OS su an canli ve tus basimlarini dinliyor.\n\n");
+    sky_print("Sistem Hazir> ");
 
-    // Ekranı temizle
-    for (int i = 0; i < 80 * 25 * 2; i += 2) {
-        video_memory[i] = ' ';
-        video_memory[i + 1] = color;
-    }
-
-    // Mesajı yazdır
-    int i = 0;
-    while (message[i] != '\0') {
-        video_memory[i * 2] = message[i];
-        video_memory[i * 2 + 1] = color;
-        i++;
-    }
-
+    // İşlemciyi uyku modunda tut ama kesmelere açık bırak (sti)
     while (1) {
-        __asm__ __volatile__("hlt");
+        __asm__ __volatile__("sti\n\thlt");
     }
 }
