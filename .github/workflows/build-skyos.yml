@@ -19,26 +19,27 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y nasm gcc-multilib xorriso grub-pc-bin mtools
 
-    - name: Kaynak Kodları Derle
+    - name: Görünmez Karakterleri Temizle ve Derle
       run: |
-        echo "[+] boot.asm derleniyor..."
+        # Senin boot.asm dosyandaki görünmez Windows karakterlerini (BOM ve CRLF) derleme öncesi geçici olarak temizler
+        sed -i '1s/^\xEF\xBB\xBF//' boot.asm
+        sed -i 's/\r$//' boot.asm
+
+        echo "[+] Senin orijinal boot.asm dosyan derleniyor..."
         nasm -f elf32 boot.asm -o boot.o
         
-        echo "[+] kernel.c derleniyor..."
+        echo "[+] Senin orijinal kernel.c dosyan derleniyor..."
         gcc -m32 -c kernel.c -o kernel.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra
         
-        echo "[+] Linker Script ile birleştiriliyor..."
+        echo "[+] Senin orijinal linker.ld script'in ile birleştiriliyor..."
         ld -m elf_i386 -T linker.ld boot.o kernel.o -o mykernel.bin
 
-    - name: ISO Klasörlerini ve GRUB Yapılandırmasını Otomatik Oluştur
+    - name: ISO Klasör Yapısını ve GRUB Ayarlarını Kur
       run: |
-        # Klasör yapısını GitHub sunucusunda dinamik olarak kuruyoruz
         mkdir -p iso/boot/grub
-        
-        # Derlenen kerneli olması gereken yere taşıyoruz
         cp mykernel.bin iso/boot/
         
-        # grub.cfg dosyasını sıfırdan tam yerine yazıyoruz
+        # Sadece GRUB menüsünü oluşturur, senin kodlarına dokunmaz
         cat << 'GRUB_EOF' > iso/boot/grub/grub.cfg
         set timeout=5
         set default=0
