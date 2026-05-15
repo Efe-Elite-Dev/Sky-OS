@@ -1,50 +1,60 @@
-name: Sky-OS Saf Kernel Derleyici
+name: Sky-OS Auto Build CI
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
 jobs:
-  build-kernel-iso:
+  build-os:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Depoyu Klonla
+    - name: Depoyu Klonla (Checkout)
       uses: actions/checkout@v4
 
-    - name: Derleme Araçlarını Kur (GCC, NASM & Mtools)
+    - name: Gerekli Derleme Araçlarını Kur
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc nasm xorriso binutils grub-pc-bin mtools
+        sudo apt-get install -y nasm gcc-multilib xorriso grub-pc-bin mtools
 
-    - name: Assembly Kodunu Derle (boot.asm -> boot.o)
+    - name: Kaynak Kodları Derle
       run: |
+        echo "[+] boot.asm derleniyor..."
         nasm -f elf32 boot.asm -o boot.o
-
-    - name: C Kodunu Derle (kernel.c -> kernel.o)
-      run: |
+        
+        echo "[+] kernel.c derleniyor..."
         gcc -m32 -c kernel.c -o kernel.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra
+        
+        echo "[+] Linker Script ile birleştiriliyor..."
+        ld -m elf_i386 -T linker.ld boot.o kernel.o -o mykernel.bin
 
-    - name: Kodları Saf Kernel Olarak Birleştir (Linker)
+    - name: ISO Klasörlerini ve GRUB Yapılandırmasını Otomatik Oluştur
       run: |
-        ld -m elf_i386 -Ttext 0x100000 boot.o kernel.o -o skykernel
+        # Klasör yapısını GitHub sunucusunda dinamik olarak kuruyoruz
+        mkdir -p iso/boot/grub
+        
+        # Derlenen kerneli olması gereken yere taşıyoruz
+        cp mykernel.bin iso/boot/
+        
+        # grub.cfg dosyasını sıfırdan tam yerine yazıyoruz
+        cat << 'GRUB_EOF' > iso/boot/grub/grub.cfg
+        set timeout=5
+        set default=0
+        menuentry "Sky-OS Saf AI Kernel" {
+            multiboot /boot/mykernel.bin
+            boot
+        }
+        GRUB_EOF
 
-    - name: GRUB Önyükleme Klasör Yapısını Hazırla
+    - name: Boot Edilebilir ISO İmajını Üret
       run: |
-        mkdir -p iso_root/boot/grub
-        cp skykernel iso_root/boot/
-        echo -e "menuentry \"Sky-OS Saf AI Kernel\" {\n  multiboot /boot/skykernel\n  boot\n}" | sudo tee iso_root/boot/grub/grub.cfg
+        grub-mkisofs -o skyos.iso iso
 
-    - name: Saf ISO Dosyasını Pişir
-      run: |
-        grub-mkrescue -o Sky-OS-Pure.iso iso_root
-
-    - name: Saf Sky-OS ISO'sunu Yayıkla (Release)
-      uses: softprops/action-gh-release@v2
+    - name: ISO Dosyasını GitHub'a Yükle (Artifact)
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: v2.0.0-PureAlpha
-        name: Sky-OS v2.0.0 Saf Kernel Release
-        files: Sky-OS-Pure.iso
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: Sky-OS-Sanal-Disk
+        path: skyos.iso
+        retention-days: 7
