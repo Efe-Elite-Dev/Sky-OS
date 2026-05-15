@@ -21,19 +21,23 @@ jobs:
 
     - name: Dosyaları Güvenli Birleştir ve Derle
       run: |
-        # 1. İlk satırdaki o hatalı/görünmez karakterli kısmı tamamen çöpe atıyoruz (1d)
-        # 2. Dosyadaki Windows satır sonlarını (\r) temizleyip yeni bir geçici dosyaya yazıyoruz
+        # 1. BOOT.ASM TEMİZLİĞİ
+        # İlk satırdaki o hatalı/görünmez karakterli kısmı tamamen çöpe atıyoruz (1d)
+        # Dosyadaki Windows satır sonlarını (\r) temizleyip yeni bir geçici dosyaya yazıyoruz
         sed '1d' boot.asm | tr -d '\r' > boot_temiz.asm
 
-        echo "[+] Senin orijinal dosyaların üzerinden derleme başlatılıyor..."
+        # 2. KERNEL.C TEMİZLİĞİ (Hatanın Ana Kaynağı)
+        # kernel.c içine sızan 'cat << EOF' (1. satır) ve 'EOF' (son satır) ifadelerini temizliyoruz
+        # Sadece saf C kodunun kalmasını sağlıyoruz
+        sed '1d;$d' kernel.c | tr -d '\r' > kernel_temiz.c
+
+        echo "[+] Senin orijinal dosyaların RAM üzerinde temizlenip derleme başlatılıyor..."
         
-        # Sadece RAM üzerindeki temiz kopyayı derliyoruz, senin depondaki boot.asm güvende kalıyor
+        # Temizlenen kodları derliyoruz, depondaki orijinal dosyalara dokunmuyoruz
         nasm -f elf32 boot_temiz.asm -o boot.o
+        gcc -m32 -c kernel_temiz.c -o kernel.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra
         
-        # Senin orijinal C kodun derleniyor
-        gcc -m32 -c kernel.c -o kernel.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra
-        
-        # Senin orijinal linker script'in ile dosyalar nihai binary haline getiriliyor
+        # Linker Script ile dosyaları nihai binary haline getiriyoruz
         ld -m elf_i386 -T linker.ld boot.o kernel.o -o mykernel.bin
 
     - name: ISO Klasör Yapısını ve GRUB Ayarlarını Kur
@@ -41,7 +45,6 @@ jobs:
         mkdir -p iso/boot/grub
         cp mykernel.bin iso/boot/
         
-        # Sadece GRUB menüsünü hazırlar
         cat << 'GRUB_EOF' > iso/boot/grub/grub.cfg
         set timeout=5
         set default=0
