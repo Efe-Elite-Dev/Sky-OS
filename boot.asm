@@ -1,4 +1,4 @@
-; Sky-OS Multiboot Bootloader
+; Sky-OS Bootloader
 MBALIGN  equ  1 << 0
 MEMINFO  equ  1 << 1
 FLAGS    equ  MBALIGN | MEMINFO
@@ -14,7 +14,7 @@ align 4
 section .bss
 align 16
 stack_bottom:
-    resb 16384 ; 16 KiB Stack
+    resb 16384
 stack_top:
 
 section .text
