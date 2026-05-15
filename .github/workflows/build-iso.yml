@@ -45,7 +45,7 @@ jobs:
     - name: Başlangıçta Direkt Bizim OOBE (Kurulum) Ekranını Tetikle
       run: |
         sudo mkdir -p live_boot/chroot/etc/skel
-        echo "xinit /usr/local/bin/sky-setup" > live_boot/chroot/etc/skel/.xinitrc
+        echo "xinit /usr/local/bin/sky-setup" | sudo tee live_boot/chroot/etc/skel/.xinitrc
 
     - name: ISO Dosyasını Pişir (SquashFS & Xorriso)
       run: |
