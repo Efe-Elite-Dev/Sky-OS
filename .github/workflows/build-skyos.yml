@@ -17,7 +17,7 @@ jobs:
     - name: Gerekli Derleme Araçlarını Kur
       run: |
         sudo apt-get update
-        sudo apt-get install -y nasm gcc-multilib xorriso grub-pc-bin grub-common mtools
+        sudo apt-get install -y nasm gcc-multilib xorriso grub-pc-bin grub-common mtools isolinux
 
     - name: Kernel ve Bootloader Derle
       run: |
@@ -40,10 +40,10 @@ jobs:
         }
         GRUB_EOF
 
-    - name: Standart x86 Boot Edilebilir ISO Uret
+    - name: Standart x86 Boot Edilebilir ISO Uret (VirtualBox Destekli)
       run: |
-        # Ubuntu üzerinde kesin çalısan evrensel xorriso komutu
-        xorriso -as mkisofs -o skyos.iso iso
+        # VirtualBox'ın BIOS modunda boot edebilmesi için GRUB'ın yerleşik kurtarma imajını ISO'nun kalbine gömüyoruz
+        grub-mkrescue -o skyos.iso iso
 
     - name: Ham ISO Dosyasini Yukle
       uses: actions/upload-artifact@v4
