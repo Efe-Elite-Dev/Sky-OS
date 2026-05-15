@@ -20,7 +20,7 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
-    # ISO'nun boş ve 12 KB çıkmasını engelleyen Linux araçları
+    # ISO'nun boş çıkmasını engelleyen Linux araçları
     - name: Install ISO Build Tools
       run: |
         sudo apt-get update
@@ -29,11 +29,14 @@ jobs:
     - name: Restore Dependencies
       run: dotnet restore
 
-    # Doğru Cosmos ISO imajını üreten komut
+    # HATA ÇÖZÜMÜ: Klasör fark etmeksizin .csproj dosyasını otomatik bulup derler
     - name: Build and Publish Sky-OS
-      run: dotnet publish -c Release -r cosmos
+      run: |
+        PROJECT_FILE=$(find . -name "*.csproj" | head -n 1)
+        echo "Bulunan Proje Dosyası: $PROJECT_FILE"
+        dotnet publish "$PROJECT_FILE" -c Release -r cosmos
 
-    # Gerçek ve büyük boyutlu .iso dosyasını VirtualBox için paketleyen kısım
+    # Gerçek .iso dosyasını VirtualBox için paketleyen kısım
     - name: Upload Sky-OS ISO Artifact
       uses: actions/upload-artifact@v4
       with:
