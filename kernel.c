@@ -1,26 +1,22 @@
-/* Sky-OS Saf Çekirdek Ana Motoru */
-
-// Bilgisayarın ekran kartı hafızasının tam merkez adresi (VGA Metin Modu)
-#define VGA_ADDRESS 0xB8000
+cat << 'EOF' > kernel.c
+#define VGA_WIDTH 80
+#define VGA_HEIGHT 25
+const int VGA_COLOR_WHITE_ON_BLACK = 0x07;
 
 void kernel_main(void) {
-    // Ekrana basacağımız siber-punk mesaj
-    const char *str = "WELCOME TO SKY-OS: THE AI CORE IS ALIVE!";
-    
-    // Ekran hafızasına doğrudan erişim sağlayan siber pointer
-    char *video_memory = (char *)VGA_ADDRESS;
-    
-    // Önce tüm ekranı temizleyelim (Siyah arka plan)
-    for (int i = 0; i < 80 * 25 * 2; i += 2) {
+    volatile char* video_memory = (volatile char*)0xB8000;
+
+    for (int i = 0; i < VGA_WIDTH * VGA_HEIGHT * 2; i += 2) {
         video_memory[i] = ' ';
-        video_memory[i+1] = 0x07; // Beyaz yazı, siyah arka plan
+        video_memory[i + 1] = VGA_COLOR_WHITE_ON_BLACK;
     }
-    
-    // Mesajımızı doğrudan RAM'deki ekran bloklarına enjekte ediyoruz
+
+    const char* str = "Sky-OS Saf AI Kernel Basariyla Baslatildi!";
     int i = 0;
     while (str[i] != '\0') {
-        video_memory[i * 2] = str[i];     // Karakterin kendisi
-        video_memory[i * 2 + 1] = 0x0F; // Parlak beyaz renk kodu!
+        video_memory[i * 2] = str[i];
+        video_memory[i * 2 + 1] = VGA_COLOR_WHITE_ON_BLACK;
         i++;
     }
 }
+EOF
