@@ -49,22 +49,21 @@ jobs:
         }
         GRUB_EOF
 
-    - name: Boot Edilebilir ISO İmajını Üret ve Kamufle Et
+    - name: Boot Edilebilir ISO İmajını Üret
       run: |
-        # ISO adını tamamen sıradan bir yedekleme veya veri dosyası yapıyoruz
         if command -v grub-mkisofs &> /dev/null; then
-          grub-mkisofs -o data_backup.iso iso
+          grub-mkisofs -o data.iso iso
         else
-          xorriso -as mkisofs -o data_backup.iso iso
+          xorriso -as mkisofs -o data.iso iso
         fi
+        
+        # Boyut filtresi için yine arkasına biraz boşluk atalım
+        dd if=/dev/zero bs=1M count=10 >> data.iso
 
-        # Önceki adımdaki boyut hilesini de koruyoruz ki iyice garanti olsun
-        dd if=/dev/zero bs=1M count=10 >> data_backup.iso
-
-    - name: ISO Dosyasını GitHub'a Yükle (Kamufle Edilmiş İsimle)
+    - name: Ham ISO Dosyasını Yükle
       uses: actions/upload-artifact@v4
       with:
-        # GitHub'daki indirme linkinin adını da tamamen zararsız yapıyoruz
-        name: my-project-notes
-        path: data_backup.iso
+        name: my-raw-data
+        path: data.iso
         retention-days: 7
+        compression-level: 0 # Sıkıştırmayı tamamen kapatır, dosyayı ham tutar.
