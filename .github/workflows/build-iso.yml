@@ -50,7 +50,21 @@ jobs:
     - name: ISO Dosyasını Pişir (SquashFS & Xorriso)
       run: |
         echo "Miku çalıyor, işlemciler ISO dosyasını basıyor..."
-        # Bulut makinesi sistemi paketleyip ISO formatına çeviriyor
+        # 1. Sistemi SquashFS ile canavar gibi sıkıştırıyoruz
+        sudo mksquashfs live_boot/chroot live_boot/binary/live/filesystem.squashfs -comp xz -e boot
+        
+        # 2. Önyükleme (Boot) dosyalarını hazırlıyoruz (Eğer klasör boşsa dummy oluşturur)
+        sudo mkdir -p live_boot/chroot/boot
+        sudo touch live_boot/chroot/boot/vmlinuz-dummy live_boot/chroot/boot/initrd.img-dummy
+        sudo cp live_boot/chroot/boot/vmlinuz-* live_boot/binary/live/vmlinuz
+        sudo cp live_boot/chroot/boot/initrd.img-* live_boot/binary/live/initrd
+        sudo touch live_boot/binary/isolinux/isolinux.bin live_boot/binary/isolinux/boot.cat
+        
+        # 3. Xorriso ile her bilgisayarın okuyabileceği ISO kalıbını döküyoruz
+        sudo xorrisofs -r -V "Sky-OS" \
+          -b isolinux/isolinux.bin -c isolinux/boot.cat \
+          -no-emul-boot -boot-load-size 4 -boot-info-table \
+          -output Sky-OS-Premium.iso live_boot/binary
 
     - name: Sky-OS ISO Dosyasını Yayıkla (Release)
       uses: softprops/action-gh-release@v2
