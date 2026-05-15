@@ -16,6 +16,7 @@ struct idt_ptr_struct {
 struct idt_entry_struct idt_entries[256];
 struct idt_ptr_struct   idt_ptr;
 
+// boot.asm içindeki fonksiyonları tam isimleriyle çağırıyoruz
 extern void load_idt(uint32_t);
 extern void keyboard_handler_asm(void);
 
