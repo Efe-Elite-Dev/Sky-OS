@@ -1,4 +1,4 @@
-name: Sky-OS Auto Build CI
+name: Sky-OS Safe Auto Build
 
 on:
   push:
@@ -19,49 +19,35 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y nasm gcc-multilib xorriso grub-pc-bin grub-common mtools
 
-    - name: Dosyaları Güvenli Birleştir ve Derle
+    - name: Kernel ve Bootloader Derle
       run: |
-        # 1. BOOT.ASM TEMİZLİĞİ
-        sed '1d' boot.asm | tr -d '\r' > boot_temiz.asm
+        echo "[+] Saf derleme baslatiliyor..."
+        nasm -f elf32 boot.asm -o boot.o
+        gcc -m32 -c kernel.c -o kernel.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra
+        ld -m elf_i386 -T linker.ld boot.o kernel.o -o mykernel.bin
 
-        # 2. KERNEL.C TEMİZLİĞİ
-        sed '1d;$d' kernel.c | tr -d '\r' > kernel_temiz.c
-
-        # 3. LINKER.LD TEMİZLİĞİ
-        sed '1d;$d' linker.ld | tr -d '\r' > linker_temiz.ld
-
-        echo "[+] Derleme başlatılıyor..."
-        nasm -f elf32 boot_temiz.asm -o boot.o
-        gcc -m32 -c kernel_temiz.c -o kernel.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra
-        ld -m elf_i386 -T linker_temiz.ld boot.o kernel.o -o mykernel.bin
-
-    - name: ISO Klasör Yapısını ve GRUB Ayarlarını Kur
+    - name: ISO Klasor Yapisini Kur
       run: |
         mkdir -p iso/boot/grub
         cp mykernel.bin iso/boot/
         
         cat << 'GRUB_EOF' > iso/boot/grub/grub.cfg
-        set timeout=5
+        set timeout=0
         set default=0
-        menuentry "Sky-OS Saf AI Kernel" {
+        menuentry "Sky-OS" {
             multiboot /boot/mykernel.bin
             boot
         }
         GRUB_EOF
 
-    - name: Boot Edilebilir ISO İmajını Üret
+    - name: Standart x86 Boot Edilebilir ISO Uret
       run: |
-        # VirtualBox'ın 'No bootable medium' hatası vermemesi için ISO'yu dosya sistemini bozmadan, saf üretiyoruz
-        if command -v grub-mkisofs &> /dev/null; then
-          grub-mkisofs -o data.iso iso
-        else
-          xorriso -as mkisofs -o data.iso iso
-        fi
+        grub-mkisofs -R -b boot/grub/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table -o skyos.iso iso || grub-mkisofs -o skyos.iso iso
 
-    - name: Ham ISO Dosyasını Yükle
+    - name: Ham ISO Dosyasini Yukle
       uses: actions/upload-artifact@v4
       with:
-        name: my-raw-data
-        path: data.iso
+        name: SkyOS-Ham-ISO
+        path: skyos.iso
         retention-days: 7
-        compression-level: 0  # Dosyayı ziplemeden ham bırakır
+        compression-level: 0
