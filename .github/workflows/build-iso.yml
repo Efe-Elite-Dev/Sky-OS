@@ -1,4 +1,4 @@
-name: Build Ultimate EXE-Executable Desktop Linux ISO
+name: Build Gemini-Powered Ultimate Linux ISO
 
 on:
   push:
@@ -8,6 +8,8 @@ on:
 jobs:
   build-ultimate-iso:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # GitHub Release oluşturabilmek için şart!
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -27,7 +29,7 @@ jobs:
         # Resmi profil şablonunu alıyoruz
         cp -r /usr/share/archiso/configs/releng /workspace/profile
 
-        # 2. DÜZELTİLMİŞ PAKET LISTESI
+        # 2. PAKET LISTESI (Python, Performans ve Grafik Bağımlılıkları)
         cat <<PACKAGES >> /workspace/profile/packages.x86_64
         xorg-server
         xorg-xinit
@@ -73,8 +75,12 @@ jobs:
         nano
         firefox
         gparted
-        PACKAGES
-
+        python
+        python-pip
+        python-requests
+        cpupower
+        EOF
+        
         # 3. MULTILIB REPOSUNU AKTIF ETME (32-bit EXE Desteği İçin)
         sed -i '/\[multilib\]/,/Include = \/etc\/pacman.d\/mirrorlist/s/^#//' /workspace/profile/pacman.conf
 
@@ -84,45 +90,103 @@ jobs:
         mkdir -p /workspace/profile/airootfs/usr/local/bin
         mkdir -p /workspace/profile/airootfs/etc/lightdm
         mkdir -p /workspace/profile/airootfs/etc/X11/xorg.conf.d
+        mkdir -p /workspace/profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml
+        mkdir -p /workspace/profile/airootfs/etc/skel/.config/xfce4/terminal
 
-        # Windows gibi açılış ekranı sunan script
+        # --- GİZLİ SOS ENTEGRASYONLARI ---
+
+        # A. EXE Çift Tıklama Sihirbazı
         cat << 'RUNNER' > /workspace/profile/airootfs/usr/local/bin/exe-runner
         #!/bin/bash
         FILE_PATH="$1"
         FILE_NAME=$(basename "$FILE_PATH")
-
-        zenity --question \
-          --title="Windows Kurulum Sihirbazı" \
-          --text="<b>$FILE_NAME</b> uygulaması çalıştırılmak üzere hazırlansın mı?\nGerekli Windows bileşenleri otomatik kontrol edilecek." \
-          --width=400 --window-icon="system-run"
-
+        zenity --question --title="Windows Kurulum Sihirbazı" --text="<b>$FILE_NAME</b> uygulaması hazırlansın mı?" --width=400 --window-icon="system-run"
         if [ $? -eq 0 ]; then
-            (
-            echo "10" ; echo "# Bağımlılıklar kontrol ediliyor..." ; sleep 1
-            echo "40" ; echo "# Windows API köprüleri kuruluyor..." ; sleep 1
-            echo "70" ; echo "# Grafik motoru optimize ediliyor (DXVK)..." ; sleep 1
-            echo "100" ; echo "# Başlatılıyor..." ; sleep 0.5
-            ) | zenity --progress --title="Uygulama Yükleniyor" --text="Lütfen bekleyin..." --percentage=0 --auto-close --width=450
-            
+            ( echo "50" ; echo "# Başlatılıyor..." ; sleep 1 ) | zenity --progress --title="Yükleniyor" --percentage=0 --auto-close --width=450
             wine "$FILE_PATH"
         fi
         RUNNER
-
         chmod +x /workspace/profile/airootfs/usr/local/bin/exe-runner
-
-        # Çift tıklama tetiği (binfmt_misc)
         echo ':DOSWin:M::MZ::/usr/local/bin/exe-runner:' > /workspace/profile/airootfs/etc/binfmt.d/wine.conf
+
+        # B. Android Tarzı Siber-Punk Gemini Paneli (Python)
+        cat << 'GEMINI_CORE' > /workspace/profile/airootfs/usr/local/bin/gemini-launch.py
+        #!/usr/bin/env python3
+        import os, sys, subprocess, requests, json
+
+        token_path = os.path.expanduser("~/.config/gemini_token")
+        if not os.path.exists(token_path):
+            token = subprocess.getoutput("zenity --entry --title='Gemini OS Core' --text='Aga, Gemini API Keyini Girin:' --width=400")
+            if token.strip():
+                os.makedirs(os.path.dirname(token_path), exist_ok=True)
+                with open(token_path, "w") as f: f.write(token.strip())
+            else: sys.exit()
+
+        with open(token_path, "r") as f: api_key = f.read().strip()
+        
+        # Zenity arayüzünü siber renklerle tetikliyoruz
+        user_input = subprocess.getoutput("zenity --entry --title='Siber Asistan' --text='Aga emret, neyi uçuralım? (Örn: exe_ayarla, efe-mode)' --width=450")
+        
+        if user_input.strip():
+            # Özel "efe-mode" komutu tetiklenirse direkt performans moduna al
+            if user_input.strip().lower() == "efe-mode":
+                os.system("sudo cpupower frequency-set -g performance")
+                subprocess.Popen(["zenity", "--info", "--text", "⚡ Efe-Mode Aktif! İşlemci frekansları maksimuma sabitlendi, gecikme sıfırlandı!", "--width=300"])
+                sys.exit()
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+            headers = {'Content-Type': 'application/json'}
+            data = {"contents": [{"parts":[{"text": f"Sen bir Linux asistanısın. Kullanıcı şunu istiyor: {user_input}. Bana sadece çalıştırabileceğim tek satırlık bir bash komutu ver, başka yazı yazma."}]}]}
+            try:
+                r = requests.post(url, headers=headers, json=data).json()
+                cmd = r['candidates'][0]['content']['parts'][0]['text'].strip().replace("```bash", "").replace("```", "")
+                subprocess.Popen(["zenity", "--info", "--text", f"Gemini Emrediyor: {cmd}", "--width=300"])
+                os.system(cmd)
+            except:
+                subprocess.Popen(["zenity", "--error", "--text", "Bağlantı hatası veya geçersiz Token!", "--width=300"])
+        
+        # RAM Koruyucu: İşimiz bittiğinde arkadaki cache'i temizle
+        os.system("sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null")
+        GEMINI_CORE
+        chmod +x /workspace/profile/airootfs/usr/local/bin/gemini-launch.py
+
+        # C. Super + G Klavye Kısayolu Ayarı
+        cat << 'SHORTCUTS' > /workspace/profile/airootfs/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml
+        <?xml version="1.0" encoding="UTF-8"?>
+        <channel name="xfce4-keyboard-shortcuts" version="1.0">
+          <property name="commands" type="empty">
+            <property name="custom" type="empty">
+              <property name="&lt;Super&gt;g" type="string" value="/usr/local/bin/gemini-launch.py"/>
+            </property>
+          </property>
+        </channel>
+        SHORTCUTS
+
+        # D. Fütüristik Terminal Renkleri (Siber Turkuaz & Gece Mavisi)
+        cat << 'TERM_THEME' > /workspace/profile/airootfs/etc/skel/.config/xfce4/terminal/terminalrc
+        [Configuration]
+        ColorPalette=#000000;#e60053;#00ffcc;#00a3ff;#0066ff;#b300ff;#00ffff;#ffffff;#555555;#ff007f;#00ffcc;#00bfff;#3385ff;#c633ff;#26ffff;#ffffff
+        ColorBackground=#0b0f19
+        ColorForeground=#00ffcc
+        ColorCursor=#00ffcc
+        FontName=Monospace 10
+        TERM_THEME
 
         # Servisler ve Ekran Ayarları
         ln -sf /usr/lib/systemd/system/NetworkManager.service /workspace/profile/airootfs/etc/systemd/system/multi-user.target.wants/NetworkManager.service
         ln -sf /usr/lib/systemd/system/lightdm.service /workspace/profile/airootfs/etc/systemd/system/display-manager.service
 
-        # 120Hz Monitör Yapılandırması
+        # 120Hz Monitör ve Input-Lag İyileştirmesi
         cat <<XORG > /workspace/profile/airootfs/etc/X11/xorg.conf.d/10-monitor.conf
         Section "Monitor"
             Identifier "Monitor0"
             Option "TargetRefresh" "120"
             Option "DPMS" "false"
+        EndSection
+        Section "InputClass"
+            Identifier "KeyboardGecikmeAzalt"
+            MatchIsKeyboard "on"
+            Option "AutoRepeat" "200 30"
         EndSection
         XORG
 
@@ -137,8 +201,7 @@ jobs:
         # 5. ULTIMATE ISO DERLEME
         mkarchiso -v -w /workspace/iso-workspace -o /workspace/output /workspace/profile
         
-        # Bul ve kopyala sihirbazı
-        find / -name "*.iso" -exec cp {} /workspace/output/ \; 2>/dev/null || true
+        find /workspace/output/ -name "*.iso" -exec cp {} /workspace/output/Efe-OS-Gemini-Edition.iso \; 2>/dev/null || true
         EOF
         
         chmod +x ${{ github.workspace }}/docker-build.sh
@@ -146,13 +209,23 @@ jobs:
     - name: Execute Build Inside Container
       run: |
         chmod -R 777 ${{ github.workspace }}
-        
-        docker run --privileged --rm \
-          -v ${{ github.workspace }}:/workspace \
-          archlinux:latest /workspace/docker-build.sh
+        docker run --privileged --rm -v ${{ github.workspace }}:/workspace archlinux:latest /workspace/docker-build.sh
 
-    - name: Upload Finished Ultimate ISO
-      uses: actions/upload-artifact@v4
+    - name: Create Automatic GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        name: Ultimate-EXE-Linux-OS
-        path: ${{ github.workspace }}/output/*.iso
+        tag_name: "v2.0.0-AI-Edition"
+        name: "Efe OS: Gemini AI Ultimate Sürüm"
+        body: |
+          🚀 Yapay zeka ve maksimum performans odaklı melez Arch Linux ISO'su hazır!
+          
+          **Eklenen Efsane Özellikler:**
+          * 🎛️ **Super + G:** Android tarzı ekrana fırlayan Gemini Asistan Paneli.
+          * 🏎️ **efe-mode:** Panele bunu yazdığında işlemci frekanslarını tavan yaptıran gecikmesiz oyun modu.
+          * 🎨 **Siber Estetik:** Turkuaz ve gece mavisi fütüristik terminal teması.
+          * ⚡ **120Hz Sabitleme & Input-Lag Fix:** Maksimum akıcılık ve klavye tepki hızı.
+          * 🍷 **EXE Çift Tıklama Desteği:** Windows uygulamaları için akıllı tetikleyici.
+          * 🧹 **RAM Saver:** Gemini kapandığı an belleği arka planda otomatik temizleyen akıllı döngü.
+        files: ${{ github.workspace }}/output/Efe-OS-Gemini-Edition.iso
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
