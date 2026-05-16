@@ -25,7 +25,7 @@ _start:
     push eax
     push ebx
 
-    cli
+    cli                 ; DONANIMSAL KESMELERİ KAPAT: VirtualBox'ın çökmesini kökten engelliyoruz!
     call kernel_main
 
 .hang:
