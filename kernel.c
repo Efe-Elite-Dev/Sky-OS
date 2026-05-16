@@ -1,5 +1,10 @@
 #include <stdint.h>
-#include "mouse.h" // Yeni fare modülümüzü dahil ediyoruz
+#include "mouse.h" 
+
+// Ekran Çözünürlüğü ve Eksik Olan Makro Tanımı
+#define SCREEN_WIDTH     800
+#define SCREEN_HEIGHT    600
+#define TOTAL_PIXELS     (SCREEN_WIDTH * SCREEN_HEIGHT)
 
 // === Windows 11 / SKY OS Fluent Renk Paleti ===
 #define COLOR_BG_TOP       0xE2E7F0  
@@ -25,7 +30,7 @@ struct multiboot_info {
 
 uint32_t* vbe_vram = (uint32_t*)0xE0000000; 
 uint32_t  vbe_pitch = SCREEN_WIDTH * 4; 
-uint32_t  back_buffer[TOTAL_PIXELS]; // Ekranın pırpır yapmasını önleyen arka tampon
+uint32_t  back_buffer[TOTAL_PIXELS]; // Artık hata vermeyecek!
 
 // Linker hatası veren ASM köprüsü fonksiyonu
 void keyboard_handler_c(void) {
@@ -101,7 +106,8 @@ unsigned char font_bitmap[128][16] = {
 };
 
 void put_char(char c, int x, int y, uint32_t color) {
-    if (c < 0 || c >= 128) return;
+    // -Wextra uyarısını engellemek için işaretsiz char aralık kontrolü düzeltildi
+    if ((unsigned char)c >= 128) return;
     for (int row = 0; row < 16; row++) {
         unsigned char bits = font_bitmap[(int)c][row];
         for (int col = 0; col < 8; col++) {
@@ -168,7 +174,6 @@ void render_interface(void) {
     for (int row = 0; row < 19; row++) {
         for (int col = 0; col < 12; col++) {
             if (mouse_pointer_sprite[row][col] == 1) {
-                // mouse_x ve mouse_y artık mouse.h'tan otomatik dinamik geliyor
                 int px = mouse_x + col;
                 int py = mouse_y + row;
                 if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
@@ -178,7 +183,7 @@ void render_interface(void) {
         }
     }
 
-    // Backbuffer'ı gerçek ekran kartı hafızasına (LFB) basma
+    // Backbuffer'ı gerçek ekran kartı hafızasına (LFB) aktarma
     uint32_t pixels_per_pitch = vbe_pitch / 4;
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         for (int x = 0; x < SCREEN_WIDTH; x++) {
