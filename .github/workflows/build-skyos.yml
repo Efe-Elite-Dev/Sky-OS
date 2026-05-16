@@ -64,8 +64,8 @@ jobs:
           gcc -m32 -c -ffreestanding -O2 -Wall -Wextra -I. keyboard.c -o keyboard.o
           gcc -m32 -c -ffreestanding -O2 -Wall -Wextra -I. idt.c -o idt.o
           
-          # 3. BURASI TAMAMEN DUZELTILDI: --nodefaultlibs yapıldı!
-          ld -m elf_i386 -nostdlib --nodefaultlibs -T linker.ld boot.o sky_subsystem.o kernel.o mouse.o screen.o gui.o ai_subsystem.o deb_subsystem.o exe_subsystem.o keyboard.o idt.o -o kernel.bin
+          # 3. Parametre temizlendi, artik hata vermez!
+          ld -m elf_i386 -nostdlib -T linker.ld boot.o sky_subsystem.o kernel.o mouse.o screen.o gui.o ai_subsystem.o deb_subsystem.o exe_subsystem.o keyboard.o idt.o -o kernel.bin
           
           echo "=== KERNEL.BIN BASARIYLA URETILDI ==="
 
