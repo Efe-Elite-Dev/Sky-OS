@@ -1,7 +1,4 @@
 #include "gui.h"
-#include "exe_subsystem.h"
-#include "deb_subsystem.h"
-#include "sky_subsystem.h"
 
 void gui_put_pixel(int x, int y, uint32_t color) {
     if (x < 0 || x >= SCREEN_WIDTH || y < 0 || y >= SCREEN_HEIGHT) return;
