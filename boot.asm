@@ -18,8 +18,11 @@ align 4
 
 section .text
 global _start
-global load_idt    ; IDT yükleyicisini dışarıya açıyoruz
+global load_idt               ; IDT yükleyicisini dışarıya açıyoruz
+global keyboard_handler_asm   ; Linker'ın aradığı klavye fonksiyonunu dışa açıyoruz
+
 extern kernel_main
+extern keyboard_handler_c     ; idt.c veya keyboard.c içindeki asıl C fonksiyonu
 
 _start:
     cli
@@ -28,10 +31,18 @@ _start:
     call kernel_main
     jmp $
 
+# === IDT Yükleme Fonksiyonu ===
 load_idt:
     mov edx, [esp + 4]  ; C kodundan gelen IDT pointer adresini al
     lidt [edx]          ; İşlemciye IDT'yi yükle
     ret                 ; C koduna geri dön
+
+# === Klavye Kesme Köprüsü (Sihirli Kısım) ===
+keyboard_handler_asm:
+    pusha               ; Tüm genel amaçlı kayıtçıları (registers) korumaya al
+    call keyboard_handler_c ; Asıl işi yapacak olan C fonksiyonunu çağır
+    popa                ; Kayıtçıları eski haline getir
+    iretd               ; Kesmeden (Interrupt) güvenli şekilde geri dön
 
 section .bss
 align 16
