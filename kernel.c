@@ -6,7 +6,6 @@ extern void gui_refresh_desktop(void);
 extern int ai_predict_hardware_load(int mouse_delta_x, int loop_count);
 
 // === DONANIM ADRES KÖPRÜLERİ ===
-// sky_subsystem.h içinde beklenen değişkenleri buraya tanımlıyoruz
 uint32_t* vbe_vram = (uint32_t*)0xE0000000; 
 uint32_t  vbe_pitch = 800 * 4;
 
@@ -16,10 +15,10 @@ static inline void io_wait(void) {
 }
 
 void kernel_main(struct multiboot_info* mboot) {
-    // KORUMA KATMANI: Multiboot yapısı RAM'de var mı ve GRUB grafik modu açtı mı?
-    if (mboot != 0 && (mboot->flags & (1 << 12))) {
-        // sky_subsystem.h içindeki değişken isimlerine göre milimetrik eşitleme
-        if (mboot->framebuffer_addr != 0 && mboot->framebuffer_bpp == 32) {
+    // KORUMA KATMANI: Multiboot yapısı var mı ve GRUB grafik modu adresini pasladı mı?
+    if (mboot != 0) {
+        // framebuffer_bpp kontrolünü kaldırıp doğrudan adrese kilitleniyoruz
+        if (mboot->framebuffer_addr != 0) {
             vbe_vram = (uint32_t*)(uintptr_t)mboot->framebuffer_addr;
             vbe_pitch = mboot->framebuffer_pitch;
         }
