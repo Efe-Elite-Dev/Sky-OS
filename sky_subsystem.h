@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include "ai_subsystem.h"
 
-void gui_draw_rect(int start_x, int start_y, int width, int height, uint32_t color);
-
 static inline void run_sky_subsystem(int win_x, int win_y, uint32_t current_tick) {
     gui_draw_rect(win_x + 15, win_y + 45, 470, 290, 0x0F172A);
     gui_draw_rect(win_x + 35, win_y + 65, 30, 30, 0xFFB900);
