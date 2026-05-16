@@ -14,10 +14,10 @@ jobs:
     - name: Depoyu Klonla (Checkout)
       uses: actions/checkout@v4
 
-    - name: Gerekli Derleme Araçlarını Kur (GCC, NASM, Xorriso)
+    - name: Gerekli Derleme Araçlarını Kur (MTOOLS EKLENDI!)
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-multilib build-essential nasm xorriso grub-pc-bin grub-common
+        sudo apt-get install -y gcc-multilib build-essential nasm xorriso grub-pc-bin grub-common mtools
 
     - name: Assembly Kodunu Derle (boot.asm)
       run: nasm -f elf32 boot.asm -o boot.o
@@ -42,8 +42,8 @@ jobs:
         echo '    boot' >> iso/boot/grub/grub.cfg
         echo '}' >> iso/boot/grub/grub.cfg
 
-    - name: Gercek Yuklenebilir ISO Dosyasini Oluştur (Bootable ISO)
-      run: xorriso -as mkisofs -R -b boot/grub/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table -o SkyOS-OOBE-Mouse.iso iso || grub-mkrescue -o SkyOS-OOBE-Mouse.iso iso
+    - name: Temiz ve Garantili ISO Olusturma (Saf GRUB-MKRESCUE)
+      run: grub-mkrescue -o SkyOS-OOBE-Mouse.iso iso
 
     - name: Derlenen ISO Dosyasini Yukle (Artifacts)
       uses: actions/upload-artifact@v4
