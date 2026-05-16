@@ -23,16 +23,29 @@ jobs:
       run: |
         if [ -f boot.asm ]; then nasm -f elf32 boot.asm -o boot.o; fi
 
+    - name: Compile Mouse Driver (mouse.c)
+      run: |
+        if [ -f mouse.c ]; then
+          gcc -m32 -c mouse.c -o mouse.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra -fno-exceptions -fno-stack-protector -fno-pie
+        fi
+
     - name: Compile Kernel (kernel.c)
       run: |
         gcc -m32 -c kernel.c -o kernel.o -std=gnu99 -ffreestanding -O2 -Wall -Wextra -fno-exceptions -fno-stack-protector -fno-pie
 
     - name: Link Kernel
       run: |
-        if [ -f linker.ld ]; then
-          ld -m elf_i386 -T linker.ld -o kernel.bin boot.o kernel.o
+        # Eğer mouse.o başarıyla derlendiyse linker'a dahil et, yoksa eski usul bağla
+        if [ -f mouse.o ]; then
+          EXTRA_OBJS="mouse.o"
         else
-          ld -m elf_i386 -N -e kernel_main -Ttext 0x100000 -o kernel.bin kernel.o
+          EXTRA_OBJS=""
+        fi
+
+        if [ -f linker.ld ]; then
+          ld -m elf_i386 -T linker.ld -o kernel.bin boot.o kernel.o $EXTRA_OBJS
+        else
+          ld -m elf_i386 -N -e kernel_main -Ttext 0x100000 -o kernel.bin kernel.o $EXTRA_OBJS
         fi
 
     - name: Create ISO Structure
