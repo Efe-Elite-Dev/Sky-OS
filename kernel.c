@@ -29,22 +29,21 @@ int8_t mouse_byte[3];
 // ====================================================================
 // 2. GELİŞMİŞ PENCERE YÖNETİCİSİ (WINDOW MANAGER) YAPISI
 // ====================================================================
-// Bu yapı sayesinde işletim sisteminde pencerelerin konumları dinamik olarak değişebilir!
 typedef struct {
     int x;
     int y;
     int width;
     int height;
-    int is_dragging;   // Fareyle sürükleniyor mu?
-    int drag_offset_x; // Tıklanan noktanın pencere köşesine olan uzaklığı
+    int is_dragging;   
+    int drag_offset_x; 
     int drag_offset_y;
 } Window;
 
-// Ana uygulama penceremizi tanımlıyoruz (Varsayılan konum ve boyutlar)
+// Ana uygulama penceremiz
 Window app_window = {262, 184, 500, 350, 0, 0, 0};
 
 // ====================================================================
-// 3. DOUBLE BUFFERING (ÇIFT TAMPON) MOTORU - GLITCH ENGELLEYİCİ
+// 3. DOUBLE BUFFERING (ÇİFT TAMPON) MOTORU
 // ====================================================================
 uint32_t back_buffer[TOTAL_PIXELS];
 
@@ -129,29 +128,21 @@ void gui_render_wallpaper(void) {
 }
 
 void gui_draw_icons(void) {
-    // 1. EXE Subsystem İkonu
     gui_draw_rounded_window(40, 40, 40, 40, 8, 0x0078D4, 255);
     gui_draw_rect(50, 52, 20, 16, 0xFFFFFF); 
     
-    // 2. DEB Subsystem İkonu
     gui_draw_rounded_window(40, 105, 40, 40, 8, 0xA8193D, 255); 
     gui_draw_rect(54, 113, 12, 24, 0xE0E0E0); 
     
-    // 3. SKY AI Subsystem İkonu
     gui_draw_rounded_window(40, 170, 40, 40, 8, 0x8B5CF6, 255); 
     gui_draw_rect(52, 182, 16, 16, 0x1E1B4B); 
 }
 
-// Dinamik Koordinat Destekli Pencere Kasası
 void gui_draw_window_frame(Window *win) {
-    // Pencere Gölgesi
     gui_draw_rect_alpha(win->x + 6, win->y + 6, win->width, win->height, 0x000000, 70);
-    // Ana Gövde
     gui_draw_rounded_window(win->x, win->y, win->width, win->height, 12, COLOR_WIN_BG, 240); 
-    // Sürüklenebilir Üst Başlık Barı (Title Bar)
     gui_draw_rounded_window(win->x, win->y, win->width, 36, 12, COLOR_WIN_TITLE, 255);
     gui_draw_rect(win->x, win->y + 24, win->width, 12, COLOR_WIN_TITLE); 
-    // Kapatma Butonu (X)
     gui_draw_rounded_window(win->x + win->width - 44, win->y + 6, 36, 24, 6, COLOR_MODERN_RED, 255);
 }
 
@@ -184,7 +175,7 @@ void gui_draw_mouse(int mx, int my) {
 }
 
 // ====================================================================
-// 5. MODÜLER ALTSİSTEM İÇERİK RENDERLARI (DİNAMİK KOORDİNATLI)
+// 5. MODÜLER ALTSİSTEM İÇERİK RENDERLARI
 // ====================================================================
 
 void run_exe_subsystem(int win_x, int win_y) {
@@ -225,12 +216,12 @@ void gui_refresh_desktop(int mx, int my, uint32_t tick) {
 }
 
 // ====================================================================
-// 6. GELİŞMİŞ SÜRÜKLEME VE TIKLAMA ALGORİTMASI
+// 6. SÜREKLİ SÜRÜKLEME VE TIKLAMA MANTIĞI
 // ====================================================================
 
 void handle_desktop_click(int is_pressed) {
     if (active_window != 0) {
-        // Kapatma butonu (X) tıklandı mı kontrolü
+        // Kapatma butonu (X) alanı
         if (mouse_x >= (app_window.x + app_window.width - 44) && 
             mouse_x <= (app_window.x + app_window.width - 8) && 
             mouse_y >= (app_window.y + 6) && mouse_y <= (app_window.y + 30)) {
@@ -242,7 +233,7 @@ void handle_desktop_click(int is_pressed) {
             }
         }
 
-        // Pencerenin üst başlık çubuğuna (Title Bar) tıklandı mı? (Sürükleme Başlangıcı)
+        // Başlık çubuğu tıklama (Sürükleme başlatma)
         if (mouse_x >= app_window.x && mouse_x <= (app_window.x + app_window.width) &&
             mouse_y >= app_window.y && mouse_y <= (app_window.y + 36)) {
             if (is_pressed && !app_window.is_dragging) {
@@ -253,12 +244,10 @@ void handle_desktop_click(int is_pressed) {
         }
     }
 
-    // Fare sol tıkı bırakıldıysa sürüklemeyi anında bitir
     if (!is_pressed) {
         app_window.is_dragging = 0;
     }
 
-    // Eğer masaüstü boşsa ve ikonlara tıklandıysa ilgili alt sistemi aç
     if (active_window == 0 && is_pressed) {
         if (mouse_x >= 40 && mouse_x <= 80) {
             if (mouse_y >= 40 && mouse_y <= 80) active_window = 1; 
@@ -313,9 +302,7 @@ void handle_mouse_polling(void) {
         if (mouse_cycle == 3) { 
             mouse_cycle = 0;
             
-            // Fare buton durumunu yakala (Sol tık basılı mı kontrolü)
             int left_button = (mouse_byte[0] & 0x01);
-            
             int8_t move_x = mouse_byte[1];
             int8_t move_y = mouse_byte[2];
             
@@ -327,18 +314,14 @@ void handle_mouse_polling(void) {
             if (mouse_y < 0) mouse_y = 0;
             if (mouse_y > SCREEN_HEIGHT - 6) mouse_y = SCREEN_HEIGHT - 6;
             
-            // Eğer sürükleme modu aktifse, pencereyi farenin hareketine göre canlı güncelle!
             if (app_window.is_dragging && left_button) {
-                app_window.x = mouse_x - app_window.x_offset; // Hata düzeltme yaması:
                 app_window.x = mouse_x - app_window.drag_offset_x;
                 app_window.y = mouse_y - app_window.drag_offset_y;
                 
-                // Pencerenin ekrandan tamamen çıkmasını engelle
                 if (app_window.x < 0) app_window.x = 0;
                 if (app_window.y < 0) app_window.y = 0;
                 if (app_window.x + app_window.width > SCREEN_WIDTH) app_window.x = SCREEN_WIDTH - app_window.width;
             } else {
-                // Sürükleme durumu haricindeki normal tıklamaları veya bırakmaları işle
                 handle_desktop_click(left_button);
             }
             
