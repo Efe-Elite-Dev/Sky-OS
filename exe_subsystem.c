@@ -1,43 +1,41 @@
 #include "sky_subsystem.h"
 #include "gui.h"
 
-// Kurulum ekranının aşamalarını takip eden siber durum değişkeni
-int setup_stage = 0; 
+int setup_stage = 0; // Kurulum aşaması takibi
 
 /**
  * 💻 SKY-OS YAPAY ZEKA DESTEKLİ KURULUM SİHİRBAZI
  */
 void run_exe_subsystem(void) {
-    // 1. ANA PENCERE (Kurulum Arka Plan Kutusu)
-    // Gri şık bir kurulum penceresi tabanı çiziyoruz
-    gui_draw_rect(150, 100, 500, 400, 0xDCDCDC); // Açık Gri Pencere
-    gui_draw_rect(150, 100, 500, 30, 0x4A69BD);  // Mavi Başlık Çubuğu (Title Bar)
+    // 1. ANA KURULUM PENCERESİ TABAĞI
+    gui_draw_rect(150, 100, 500, 400, 0xDCDCDC); // Şık Açık Gri Arka Plan
+    gui_draw_rect(150, 100, 500, 30, 0x4A69BD);  // Kurumsal Mavi Başlık Çubuğu
 
-    // Pencereye siber gölgelendirme efekti verelim
+    // Siber Gölgelendirme (Pencereye 3D derinlik katıyoruz)
     gui_draw_rect(150, 495, 500, 5, 0x888888);
     gui_draw_rect(645, 100, 5, 400, 0x888888);
 
-    // 2. AŞAMALARA GÖRE KURULUM İÇERİĞİ
+    // 2. AŞAMA KONTROLLERİ
     if (setup_stage == 0) {
-        // Hoş Geldiniz Ekranı Kutuları
-        gui_draw_rect(180, 160, 440, 180, 0xFFFFFF); // Beyaz metin alanı simülasyonu
+        // Hoş Geldiniz Ekranı Metin Kutusu
+        gui_draw_rect(180, 160, 440, 180, 0xFFFFFF); 
         
-        // Sağ Alttaki "İleri (Next)" Butonu (Aktif ve Tıklanabilir Durumda)
-        gui_draw_rect(540, 440, 80, 30, 0x1E3799); // Koyu Mavi Buton
+        // Aktif "İleri (Next)" Butonu
+        gui_draw_rect(540, 440, 80, 30, 0x1E3799); 
     } 
     else if (setup_stage == 1) {
-        // "Yükleniyor ve Disk Biçimlendiriliyor" Aşaması (İlerleme Çubuğu / Progress Bar)
-        gui_draw_rect(180, 220, 440, 30, 0xEEF2F3); // Bar Arka Planı
-        gui_draw_rect(180, 220, 250, 30, 0x78E08F); // Yeşil İlerleme Durumu (%60)
+        // İlerleme Çubuğu (Disk Biçimlendirme ve Kurulum Simülasyonu)
+        gui_draw_rect(180, 220, 440, 30, 0xEEF2F3); // Boş Çubuk
+        gui_draw_rect(180, 220, 250, 30, 0x78E08F); // Dolan Bar (%60 Yeşil)
         
-        // Alt Kısımdaki Buton (Pasif Durumda)
-        gui_draw_rect(540, 440, 80, 30, 0x95A5A6); // Gri Buton
+        // Bekleme Durumunda Pasif Buton
+        gui_draw_rect(540, 440, 80, 30, 0x95A5A6); 
     }
     else if (setup_stage == 2) {
-        // "Kurulum Başarıyla Tamamlandı" Ekranı
-        gui_draw_rect(180, 160, 440, 180, 0x78E08F); // Başarılı Yeşili Alan
+        // Kurulum Başarı Alanı
+        gui_draw_rect(180, 160, 440, 180, 0x78E08F); 
         
         // "Sistemi Başlat (Finish)" Butonu
-        gui_draw_rect(520, 440, 100, 30, 0x218C74); // Koyu Yeşil Buton
+        gui_draw_rect(520, 440, 100, 30, 0x218C74); 
     }
 }
