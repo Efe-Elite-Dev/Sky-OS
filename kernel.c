@@ -81,7 +81,7 @@ void vga_flush(void) {
 }
 
 void gui_draw_char(int x, int y, char c, uint32_t color) {
-    if (c < 0 || c >= 128) return;
+    if ((unsigned char)c >= 128) return; // GCC Uyarısı giderildi
     for (int row = 0; row < 16; row++) {
         unsigned char bits = font_bitmap[(int)c][row];
         for (int col = 0; col < 8; col++) {
@@ -268,7 +268,7 @@ void init_mouse(void) {
     while((inb(0x64) & 0x02));
     outb(0x60, status);
     while((inb(0x64) & 0x02));
-    outb(0x64,xD4);
+    outb(0x64, 0xD4); // 'xD4' hatası '0xD4' olarak düzeltildi!
     while((inb(0x64) & 0x02));
     outb(0x60, 0xF4); 
     inb(0x60); 
