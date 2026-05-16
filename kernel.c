@@ -2,8 +2,6 @@
 #include "mouse.h" 
 
 // Ekran Çözünürlüğü ve Grafik Makroları
-#define SCREEN_WIDTH     800
-#define SCREEN_HEIGHT    600
 #define TOTAL_PIXELS     (SCREEN_WIDTH * SCREEN_HEIGHT)
 
 // Donanım Port Tanımlamaları
@@ -39,13 +37,6 @@ uint32_t* vbe_vram = (uint32_t*)0xE0000000;
 uint32_t  vbe_pitch = SCREEN_WIDTH * 4; 
 uint32_t  back_buffer[TOTAL_PIXELS]; 
 
-/* Donanımdan veri okuyan Assembly köprüsü */
-static inline uint8_t inb(uint16_t port) {
-    uint8_t data;
-    __asm__ __volatile__("inb %1, %0" : "=a"(data) : "Nd"(port));
-    return data;
-}
-
 /* Linker hatasını önleyen eski ASM köprü fonksiyonu */
 void keyboard_handler_c(void) {
     volatile uint8_t status = inb(KEYBOARD_STATUS_PORT);
@@ -73,7 +64,7 @@ char scancode_to_ascii(unsigned char scancode) {
     }
 }
 
-// 🛠️ TÜM ÇİZİM FONKSİYONLARI ARTIK SADECE SABİT 800 GENİŞLİKLİ BACK_BUFFER'A YAZIYOR
+// Grafik Çizim Araçları (Sadece Arka Arabelleğe Yazar)
 void draw_background_gradient(void) {
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         uint8_t r1 = (COLOR_BG_TOP >> 16) & 0xFF; uint8_t g1 = (COLOR_BG_TOP >> 8) & 0xFF; uint8_t b1 = COLOR_BG_TOP & 0xFF;
@@ -110,7 +101,6 @@ void draw_circle(int xc, int yc, int r, uint32_t color) {
     }
 }
 
-// Donanımsal Font Haritası
 unsigned char font_bitmap[128][16] = {
     ['S'] = {0x3C, 0x42, 0x40, 0x3C, 0x02, 0x02, 0x42, 0x42, 0x3C},
     ['K'] = {0x42, 0x44, 0x48, 0x70, 0x50, 0x48, 0x44, 0x42, 0x42},
@@ -174,10 +164,8 @@ void check_keyboard(void) {
 }
 
 void render_interface(void) {
-    // 1. Arka plan gradyanını buffer'a çiz
     draw_background_gradient();
 
-    // 2. Merkezi beyaz kartı buffer'a çiz
     int card_w = 700; int card_h = 480;
     int card_x = (SCREEN_WIDTH - card_w) / 2; int card_y = (SCREEN_HEIGHT - card_h) / 2;
     draw_rect(card_x, card_y, card_w, card_h, COLOR_CARD_BG);
@@ -214,7 +202,6 @@ void render_interface(void) {
         item_y += item_h + 6;
         put_string("Amerika Birlesik Devletleri", item_x + 12, item_y + 10, COLOR_TEXT_SUB);
         
-        // Mavi Türkiye şeridi
         draw_rect(item_x, item_y, item_w, item_h, COLOR_ACCENT_BLUE);
         put_string("Turkiye (SKY OS Core)", item_x + 12, item_y + 12, COLOR_TEXT_WHITE);
 
@@ -229,7 +216,7 @@ void render_interface(void) {
         put_string("Evet", btn_x + 38, btn_y + 8, COLOR_TEXT_WHITE);
     }
 
-    // 3. Farenin okunu buffer'ın EN ÜSTÜNE yerleştir
+    // Farenin okunu arabelleğin en üst katmanına çiz
     for (int row = 0; row < 19; row++) {
         for (int col = 0; col < 12; col++) {
             if (mouse_pointer_sprite[row][col] == 1) {
@@ -242,8 +229,7 @@ void render_interface(void) {
         }
     }
 
-    // 4. 🛠️ TEK BİR GÜVENLİ TRANSFER: Jilet gibi bitmiş tüm buffer'ı, 
-    // ekran kartının donanımsal satır genişliğine (pitch) göre tek seferde VRAM'e basıyoruz!
+    // Arabelleği (back_buffer) tek hamlede VRAM'e aktar (Donanımsal Pitch Hizalamasıyla)
     uint32_t pixels_per_pitch = vbe_pitch / 4; 
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         for (int x = 0; x < SCREEN_WIDTH; x++) {
