@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-// Ekran sınırlarını kontrol etmek için kernel çözünürlükleri
+// Ekran çözünürlük tanımları (Kernel ile senkronize)
 #define SCREEN_WIDTH     800
 #define SCREEN_HEIGHT    600
 
