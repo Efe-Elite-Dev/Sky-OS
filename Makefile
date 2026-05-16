@@ -1,33 +1,33 @@
-# === 1. Derleyici ve Bağlayıcı Tanımlamaları ===
 CC = gcc
 AS = nasm
-LD = ld
+LDFLAGS = -m32 -nostdlib -nodefaultlibs -T linker.ld
+CFLAGS = -m32 -c -ffreestanding -O2 -Wall -Wextra -I.
 
-# === 2. Derleme Bayrakları (Flags) ===
-CFLAGS = -m32 -std=gnu99 -ffreestanding -O2 -Wall -Wextra -fno-exceptions -fno-stack-protector -fno-pie
-LDFLAGS = -m elf_i386 -T linker.ld
+OBJS = boot.o sky_subsystem.o kernel.o mouse.o screen.o gui.o ai_subsystem.o deb_subsystem.o exe_subsystem.o keyboard.o idt.o
 
-# === 3. Projedeki Nesne Dosyaları ===
-OBJS = boot.o kernel.o mouse.o
+all: skyos.iso
 
-# === 4. Ana Hedef ===
-all: myos.bin
-
-# === 5. Bağlama (Linking) Kuralı ===
-myos.bin: $(OBJS)
-	$(LD) $(LDFLAGS) -o myos.bin $(OBJS)
-
-# === 6. Assembly Derleme Kuralı ===
 boot.o: boot.asm
 	$(AS) -f elf32 boot.asm -o boot.o
 
-# === 7. C Kodlarını Derleme Kuralları ===
-kernel.o: kernel.c mouse.h
-	$(CC) $(CFLAGS) -c kernel.c -o kernel.o
+%.o: %.c
+	$(CC) $(CFLAGS) $< -o $@
 
-mouse.o: mouse.c mouse.h
-	$(CC) $(CFLAGS) -c mouse.c -o mouse.o
+kernel.bin: $(OBJS)
+	ld $(LDFLAGS) $(OBJS) -o kernel.bin
 
-# === 8. Temizlik Kuralı ===
+skyos.iso: kernel.bin
+	mkdir -p iso_root/boot/grub
+	cp kernel.bin iso_root/boot/
+	@if [ ! -f iso_root/boot/grub/grub.cfg ]; then \
+		echo 'menuentry "SKY OS Core" {' > iso_root/boot/grub/grub.cfg; \
+		echo '    multiboot /boot/kernel.bin' >> iso_root/boot/grub/grub.cfg; \
+		echo '    boot' >> iso_root/boot/grub/grub.cfg; \
+		echo '}' >> iso_root/boot/grub/grub.cfg; \
+	fi
+	genisoimage -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o skyos.iso iso_root 2>/dev/null || \
+	grub-mkrescue -o skyos.iso iso_root || \
+	genisoimage -R -o skyos.iso iso_root
+
 clean:
-	rm -f *.o myos.bin
+	rm -rf *.o kernel.bin skyos.iso iso_root
