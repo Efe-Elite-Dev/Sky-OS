@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-void gui_draw_rect(int start_x, int start_y, int width, int height, uint32_t color);
-
 static inline int sky_ai_analyze_intent(uint32_t input_hash) {
     if (input_hash % 3 == 0) return 1; 
     if (input_hash % 3 == 1) return 2; 
