@@ -1,12 +1,10 @@
 #include <stdint.h>
 #include "mouse.h" 
 
-// Ekran Çözünürlüğü ve Grafik Makroları
 #define SCREEN_WIDTH     800
 #define SCREEN_HEIGHT    600
 #define TOTAL_PIXELS     (SCREEN_WIDTH * SCREEN_HEIGHT)
 
-// Donanım Port Tanımlamaları
 #define KEYBOARD_DATA_PORT   0x60
 #define KEYBOARD_STATUS_PORT 0x64
 
@@ -19,12 +17,10 @@
 #define COLOR_ACCENT_BLUE  0x005A9E  
 #define COLOR_TEXT_WHITE   0xFFFFFF  
 #define COLOR_CURSOR       0x00A2ED  
-#define COLOR_GREEN_SUCCESS 0x107C41 // Kurulum tamamlandığında parlayacak renk
+#define COLOR_GREEN_SUCCESS 0x107C41 
 
-// Global Durum Değişkeni (Kurulum bitti mi?)
 int setup_completed = 0;
 
-// Multiboot Yapısı
 struct multiboot_info {
     uint32_t flags; uint32_t mem_lower; uint32_t mem_upper; uint32_t boot_device;
     uint32_t cmdline; uint32_t mods_count; uint32_t mods_addr; uint32_t num;
@@ -40,14 +36,12 @@ uint32_t* vbe_vram = (uint32_t*)0xE0000000;
 uint32_t  vbe_pitch = SCREEN_WIDTH * 4; 
 uint32_t  back_buffer[TOTAL_PIXELS]; 
 
-/* Donanımdan veri okuyan Assembly köprüsü */
 static inline uint8_t inb(uint16_t port) {
     uint8_t data;
     __asm__ __volatile__("inb %1, %0" : "=a"(data) : "Nd"(port));
     return data;
 }
 
-/* Linker hatasını önleyen eski ASM köprü fonksiyonu */
 void keyboard_handler_c(void) {
     volatile uint8_t status = inb(KEYBOARD_STATUS_PORT);
     if (status & 0x01) {
@@ -56,7 +50,6 @@ void keyboard_handler_c(void) {
     }
 }
 
-/* Tarama Kodunu ASCII karakterine çeviren harita */
 char scancode_to_ascii(unsigned char scancode) {
     switch(scancode) {
         case 0x1E: return 'A'; case 0x30: return 'B'; case 0x2E: return 'C';
@@ -69,12 +62,11 @@ char scancode_to_ascii(unsigned char scancode) {
         case 0x2F: return 'V'; case 0x11: return 'W'; case 0x2D: return 'X';
         case 0x15: return 'Y'; case 0x2C: return 'Z';
         case 0x39: return ' ';  
-        case 0x1C: return '\n'; // Enter tuşu
+        case 0x1C: return '\n'; 
         default: return 0;      
     }
 }
 
-// Grafik Çizim Araçları
 void draw_background_gradient(void) {
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         uint8_t r1 = (COLOR_BG_TOP >> 16) & 0xFF; uint8_t g1 = (COLOR_BG_TOP >> 8) & 0xFF; uint8_t b1 = COLOR_BG_TOP & 0xFF;
@@ -105,7 +97,6 @@ void draw_circle(int xc, int yc, int r, uint32_t color) {
     }
 }
 
-// Font Yapısı
 unsigned char font_bitmap[128][16] = {
     ['S'] = {0x3C, 0x42, 0x40, 0x3C, 0x02, 0x02, 0x42, 0x42, 0x3C},
     ['K'] = {0x42, 0x44, 0x48, 0x70, 0x50, 0x48, 0x44, 0x42, 0x42},
@@ -154,20 +145,12 @@ void put_string(const char* s, int x, int y, uint32_t color) {
     while (*s) { put_char(*s, x, y, color); x += 8; s++; }
 }
 
-/* Sana Verilen Nöbetçi Klavye Tarama Fonksiyonu (Geliştirildi) */
 void check_keyboard(void) {
     static unsigned char last_scancode = 0;
-
-    // 1. Durum portunu kontrol et: Veri var mı?
     if (inb(KEYBOARD_STATUS_PORT) & 1) {
-        // 2. Ham tarama kodunu oku
         unsigned char scancode = inb(KEYBOARD_DATA_PORT);
-        
-        // 3. Sadece tuşa basıldığında işlem yap (0x80'den küçükse basılmıştır)
         if (scancode != last_scancode && scancode < 0x80) {
             char ascii = scancode_to_ascii(scancode);
-            
-            // Eğer Enter tuşuna basıldıysa kuruluma onay ver!
             if (ascii == '\n') {
                 setup_completed = 1;
             }
@@ -176,7 +159,6 @@ void check_keyboard(void) {
     }
 }
 
-// Ekran Yenileme Motoru
 void render_interface(void) {
     draw_background_gradient();
 
@@ -184,10 +166,8 @@ void render_interface(void) {
     int card_x = (SCREEN_WIDTH - card_w) / 2; int card_y = (SCREEN_HEIGHT - card_h) / 2;
     draw_rect(card_x, card_y, card_w, card_h, COLOR_CARD_BG);
 
-    // Sol Küresel Grafik
     int left_center_x = card_x + 160; int left_center_y = card_y + 240;
     
-    // Eğer kurulum bittiyse sol küreyi yeşile döndür!
     if (setup_completed) {
         draw_circle(left_center_x, left_center_y, 75, COLOR_GREEN_SUCCESS);           
         draw_circle(left_center_x - 12, left_center_y + 12, 55, 0x0E6233); 
@@ -200,7 +180,6 @@ void render_interface(void) {
 
     put_string("SKY OS OOBE Setup", card_x + 30, card_y + 30, COLOR_TEXT_SUB);
 
-    // Sağ Alan Metinleri ve Durum Kontrolü
     int right_content_x = card_x + 340; int right_content_y = card_y + 60;
     
     if (setup_completed) {
@@ -212,7 +191,6 @@ void render_interface(void) {
         put_string("SKY OS dil ve bolge ayarlari otomatik", right_content_x, right_content_y + 22, COLOR_TEXT_SUB);
         put_string("olarak sisteme entegre edilecektir.", right_content_x, right_content_y + 38, COLOR_TEXT_SUB);
 
-        // Liste Elemanları
         int item_x = right_content_x; int item_y = right_content_y + 85;
         int item_w = 320; int item_h = 36;
 
@@ -220,8 +198,6 @@ void render_interface(void) {
         item_y += item_h + 6;
         put_string("Amerika Birlesik Devletleri", item_x + 12, item_y + 10, COLOR_TEXT_SUB);
         
-        // Aktif Şerit (Türkiye)
-        item_y += item_h + 6;
         draw_rect(item_x, item_y, item_w, item_h, COLOR_ACCENT_BLUE);
         put_string("Turkiye (SKY OS Core)", item_x + 12, item_y + 12, COLOR_TEXT_WHITE);
 
@@ -230,7 +206,6 @@ void render_interface(void) {
         item_y += item_h + 6;
         put_string("Turkce Q / F Klavye Modu", item_x + 12, item_y + 10, COLOR_TEXT_SUB);
 
-        // Sağ Alt Buton ("Evet" Butonu)
         int btn_w = 110; int btn_h = 32;
         int btn_x = card_x + card_w - btn_w - 30; int btn_y = card_y + card_h - btn_h - 30;
         draw_rect(btn_x, btn_y, btn_w, btn_h, COLOR_ACCENT_BLUE);
@@ -250,7 +225,6 @@ void render_interface(void) {
         }
     }
 
-    // Gerçek VRAM'e yazma
     uint32_t pixels_per_pitch = vbe_pitch / 4;
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         for (int x = 0; x < SCREEN_WIDTH; x++) {
@@ -259,28 +233,29 @@ void render_interface(void) {
     }
 }
 
-// Ana Çekirdek Girişi
 void kernel_main(struct multiboot_info* mboot) {
-    if (mboot != 0) {
-        // Cerrahi müdahale: flag kontrolleri tam senkronize
-        if (mboot->framebuffer_addr != 0) {
-            vbe_vram = (uint32_t*)mboot->framebuffer_addr;
-            vbe_pitch = mboot->framebuffer_pitch;
-        }
+    if (mboot != 0 && mboot->framebuffer_addr != 0) {
+        vbe_vram = (uint32_t*)mboot->framebuffer_addr;
+        vbe_pitch = mboot->framebuffer_pitch;
     }
 
     init_mouse();          
     render_interface();
 
-    uint32_t t = 0;
+    uint32_t refresh_counter = 0;
     while (1) {
-        handle_mouse_polling(); // Fareyi dinle
-        check_keyboard();       // SANA VERİLEN KLAVYEYİ DE ARTIK DİNLİYORUZ!
+        handle_mouse_polling(); 
+        check_keyboard();       
         
-        t++;
-        if (t % 2000 == 0) { 
-            render_interface(); // Ekranı tazele
+        // 🛠️ Akıcılık Düzeltmesi: Her döngüde render geciktirmek yerine
+        // sadece fare hareket ettikçe veya belirli aralıklarla çizim yapılır.
+        refresh_counter++;
+        if (refresh_counter >= 150) { 
+            render_interface(); 
+            refresh_counter = 0;
         }
-        for (volatile int i = 0; i < 1000; i++); 
+        
+        // İşlemcinin çok ısınmasını engelleyen minimal donanım dinlendirmesi
+        for (volatile int i = 0; i < 50; i++); 
     }
 }
