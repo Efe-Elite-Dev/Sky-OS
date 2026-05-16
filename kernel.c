@@ -1,14 +1,11 @@
 #include <stdint.h>
 
-// ====================================================================
-// 1. %100 UYUMLU GÜVENLİ GRAFİK MODU AYARLARI
-// ====================================================================
-#define VBE_START_ADDR   0xE0000000 
+// Ekran Çözünürlük Standartları
 #define SCREEN_WIDTH     800
 #define SCREEN_HEIGHT    600
 #define TOTAL_PIXELS     (SCREEN_WIDTH * SCREEN_HEIGHT)
 
-// Windows 11 / Akıcı Arayüz Renk Paleti (Hex Format)
+// Windows 11 Arayüz Renk Paleti
 #define COLOR_BG         0x0A0F24  
 #define COLOR_TASKBAR    0x1A2342  
 #define COLOR_ACCENT     0x0078D4  
@@ -17,29 +14,19 @@
 #define COLOR_MODERN_RED 0xE81123  
 #define COLOR_CURSOR     0x00A2ED  
 #define COLOR_TEXT_WHITE 0xFFFFFF
-#define COLOR_TEXT_DARK  0x1E293B
 
 // Sistem Durum Değişkenleri
 int active_window = 0; 
 uint32_t system_ticks = 0;
-
-int mouse_x = 400; // Ekran ortasında başla
+int mouse_x = 400; 
 int mouse_y = 300; 
 uint8_t mouse_cycle = 0;
 int8_t mouse_byte[3];
 
-// Sürükleyebileceğimiz Örnek Uygulama Penceresi Yapısı
-typedef struct {
-    int x; int y; int width; int height;
-    int is_dragging; int drag_offset_x; int drag_offset_y;
-} Window;
+// Gerçek Ekran Kartı VRAM Adres İşaretçisi (Dinamik doldurulacak)
+uint32_t* vbe_vram = (uint32_t*)0xE0000000; 
 
-Window app_window = {175, 120, 450, 320, 0, 0, 0};
-
-// ====================================================================
-// 2. 8x16 BITMAP FONT TANIMLAMASI (HATAYI ÇÖZEN GERÇEK MATRİS)
-// ====================================================================
-// Linker'ın bulamadığı font_bitmap dizisini buraya doğrudan tanımlıyoruz.
+// Font Dosyası Matrisi
 unsigned char font_bitmap[128][16] = {
     ['A'] = {0x18, 0x24, 0x42, 0x42, 0x7E, 0x42, 0x42, 0x42, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
     ['B'] = {0x7C, 0x42, 0x42, 0x42, 0x7C, 0x42, 0x42, 0x42, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
@@ -66,9 +53,6 @@ unsigned char font_bitmap[128][16] = {
     [' '] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 };
 
-// ====================================================================
-// 3. GRAFİK VE EKRAN RENDER MOTORU
-// ====================================================================
 uint32_t back_buffer[TOTAL_PIXELS];
 
 void gui_put_pixel(int x, int y, uint32_t color) {
@@ -76,40 +60,41 @@ void gui_put_pixel(int x, int y, uint32_t color) {
     back_buffer[y * SCREEN_WIDTH + x] = color;
 }
 
-// Karakter basma motoru artık buradaki font_bitmap dizisini doğrudan okuyacak
 void put_char(char c, int x, int y, uint32_t color) {
     if (c < 0 || c >= 128) return;
     for (int row = 0; row < 16; row++) {
         unsigned char bits = font_bitmap[(int)c][row];
         for (int col = 0; col < 8; col++) {
-            if (bits & (0x80 >> col)) {
-                gui_put_pixel(x + col, y + row, color);
-            }
+            if (bits & (0x80 >> col)) gui_put_pixel(x + col, y + row, color);
         }
     }
 }
 
 void gui_refresh_desktop(int mx, int my, uint32_t tick) {
-    // Masaüstü arka plan çizimi (Dikey çizgi bug'ını önleyen tasarım)
+    // Çizgi bug'ını önleyen temiz arka plan tamponlama
     for (int i = 0; i < TOTAL_PIXELS; i++) {
         back_buffer[i] = COLOR_BG;
     }
     
-    // İmleci ve sistem tik sayacını simüle et
+    // Alt Görev Çubuğu (Taskbar) Çizimi
+    for (int y = SCREEN_HEIGHT - 40; y < SCREEN_HEIGHT; y++) {
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+            back_buffer[y * SCREEN_WIDTH + x] = COLOR_TASKBAR;
+        }
+    }
+
+    // "SKY" Yazısını mouse imleci yerine bas
     put_char('S', mx, my, COLOR_CURSOR);
     put_char('K', mx + 8, my, COLOR_CURSOR);
     put_char('Y', mx + 16, my, COLOR_CURSOR);
     
-    // Arka belleği gerçek ekran kartı VRAM'ine boşalt (Flush)
-    uint32_t *vram = (uint32_t*)VBE_START_ADDR;
+    // Çökmeyi önleyen güvenli VRAM kopyalaması
     for (int i = 0; i < TOTAL_PIXELS; i++) {
-        vram[i] = back_buffer[i];
+        vbe_vram[i] = back_buffer[i];
     }
 }
 
-// ====================================================================
-// 4. DONANIM SÜRÜCÜLERİ VE INTERRUPT BAĞLANTILARI
-// ====================================================================
+// Donanım register fonksiyonları
 static inline uint8_t inb(uint16_t port) {
     uint8_t data;
     __asm__ __volatile__("inb %1, %0" : "=a"(data) : "Nd"(port));
@@ -156,24 +141,32 @@ void handle_mouse_polling(void) {
             mouse_y -= move_y; 
             
             if (mouse_x < 0) mouse_x = 0;
-            if (mouse_x > SCREEN_WIDTH - 6) mouse_x = SCREEN_WIDTH - 6;
+            if (mouse_x > SCREEN_WIDTH - 24) mouse_x = SCREEN_WIDTH - 24;
             if (mouse_y < 0) mouse_y = 0;
-            if (mouse_y > SCREEN_HEIGHT - 6) mouse_y = SCREEN_HEIGHT - 6;
+            if (mouse_y > SCREEN_HEIGHT - 40) mouse_y = SCREEN_HEIGHT - 40;
             
             gui_refresh_desktop(mouse_x, mouse_y, system_ticks);
         }
     }
 }
 
-extern void init_idt(void); // idt.c'deki fonksiyonu çağırabilmek için dış referans
+extern void init_idt(void);
 
-// ====================================================================
-// 5. ANA KERNEL BAŞLANGIÇ NOKTASI (MAIN LOOP)
-// ====================================================================
-void kernel_main(void) {
-    init_idt();            // IDT Tablosunu yükle
+// ANA BAŞLANGIÇ NOKTASI (GRUB'dan gelen ebx parametresi alındı)
+void kernel_main(uint32_t* mboot_ptr) {
+    init_idt();            
+    
+    // Eğer GRUB başarıyla ekran kartı adresi döndürdüyse onu kullan, 
+    // aksi halde varsayılan güvenli adrese (0xE0000000) fallback yap.
+    if (mboot_ptr != 0 && (mboot_ptr[0] & (1 << 11))) {
+        uint32_t* vbe_info = (uint32_t*)mboot_ptr[22]; 
+        if (vbe_info != 0) {
+            vbe_vram = (uint32_t*)vbe_info[4]; // GRUB'ın eşlediği fiziksel VRAM adresi
+        }
+    }
+
     gui_refresh_desktop(mouse_x, mouse_y, system_ticks); 
-    init_mouse();          // Fareyi hazırla
+    init_mouse();          
 
     while (1) {
         handle_mouse_polling();
@@ -186,9 +179,6 @@ void kernel_main(void) {
     }
 }
 
-// ====================================================================
-// 6. KEYBOARD.C İÇİN KLAVYE HARF BASMA KÖPRÜSÜ
-// ====================================================================
 void sky_put_char(char c) {
     static int text_x = 40;
     static int text_y = 500;
