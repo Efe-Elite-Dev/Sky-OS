@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include "mouse.h" 
 
-// Ekran Çözünürlüğü ve Eksik Olan Makro Tanımı
+// Ekran Çözünürlüğü ve Grafik Makroları
 #define SCREEN_WIDTH     800
 #define SCREEN_HEIGHT    600
 #define TOTAL_PIXELS     (SCREEN_WIDTH * SCREEN_HEIGHT)
@@ -14,7 +14,7 @@
 #define COLOR_TEXT_SUB     0x5C6479  
 #define COLOR_ACCENT_BLUE  0x005A9E  
 #define COLOR_TEXT_WHITE   0xFFFFFF  
-#define COLOR_CURSOR       0x00A2ED  // Fare Ok Rengi
+#define COLOR_CURSOR       0x00A2ED  
 
 // Multiboot Yapısı
 struct multiboot_info {
@@ -30,7 +30,7 @@ struct multiboot_info {
 
 uint32_t* vbe_vram = (uint32_t*)0xE0000000; 
 uint32_t  vbe_pitch = SCREEN_WIDTH * 4; 
-uint32_t  back_buffer[TOTAL_PIXELS]; // Artık hata vermeyecek!
+uint32_t  back_buffer[TOTAL_PIXELS]; 
 
 // Linker hatası veren ASM köprüsü fonksiyonu
 void keyboard_handler_c(void) {
@@ -106,7 +106,6 @@ unsigned char font_bitmap[128][16] = {
 };
 
 void put_char(char c, int x, int y, uint32_t color) {
-    // -Wextra uyarısını engellemek için işaretsiz char aralık kontrolü düzeltildi
     if ((unsigned char)c >= 128) return;
     for (int row = 0; row < 16; row++) {
         unsigned char bits = font_bitmap[(int)c][row];
@@ -124,7 +123,7 @@ void put_string(const char* s, int x, int y, uint32_t color) {
     while (*s) { put_char(*s, x, y, color); x += 8; s++; }
 }
 
-// Ekran Yenileme ve Çizim Motoru
+// Ekran Yenileme Motoru
 void render_interface(void) {
     draw_background_gradient();
 
@@ -183,7 +182,7 @@ void render_interface(void) {
         }
     }
 
-    // Backbuffer'ı gerçek ekran kartı hafızasına (LFB) aktarma
+    // Gerçek VRAM'e yazma
     uint32_t pixels_per_pitch = vbe_pitch / 4;
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         for (int x = 0; x < SCREEN_WIDTH; x++) {
@@ -203,20 +202,14 @@ void kernel_main(struct multiboot_info* mboot) {
         }
     }
 
-    // Modüler fare sürücümüzü başlatıyoruz
     init_mouse();          
-
-    // İlk Ekranı Oluştur
     render_interface();
 
     uint32_t t = 0;
     while (1) {
-        // mouse.c içindeki tarama motorunu çalıştır
         handle_mouse_polling();
-        
         t++;
         if (t % 2000 == 0) { 
-            // Her döngüde fare hareket etmişse ekranı akıcı şekilde tazele
             render_interface();
         }
         for (volatile int i = 0; i < 1000; i++); 
