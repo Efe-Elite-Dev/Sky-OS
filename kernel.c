@@ -4,146 +4,216 @@
 char cmd_buffer[256];
 int cmd_index = 0;
 
-// Kullanıcı Verileri
-char user_wifi_pass[64];
-int wifi_pass_idx = 0;
-char user_time[16] = "12:00"; // Varsayılan Wi-Fi saati
-int time_idx = 0;
-
-// ANDROID UI ADIMLARI (State Machine)
-// 0: Full Beyaz Hoş Geldiniz & Başlayın Butonu
-// 1: Wi-Fi Şifre Girişi veya Atla Ekranı
-// 2: Saat Belirleme veya Atla (Wi-Fi'dan Al) Ekranı
-// 3: Kurulum Bitti, Başlayabilirsiniz Butonu
-// 4: Gerçek Android Esintili Beyaz Sky-Shell masaüstü
+// Windows OOBE Adımları (State Machine)
+// 0: Hoş Geldiniz & Bölge Seçimi -> [ İLERİ ] Butonu
+// 1: Ağ Bağlantısı (Wi-Fi) -> [ ŞİFRE KUTUSU ] veya [ ATLA ]
+// 2: Saat Ayarları -> [ SAAT KUTUSU ] veya [ İLERİ ]
+// 3: Kurulum Tamamlandı -> [ BAŞLAYIN ]
+// 4: Windows Temalı Sky-Shell Masaüstü
 int setup_state = 0;
 
-// Port Okuma
+// GEÇİCİ KULLANICI VERİLERİ
+char user_time[16] = "12:00";
+int time_idx = 0;
+
+// FARE (MOUSE) SÜRÜCÜSÜ DEĞİŞKENLERİ
+int mouse_x = 40; // Ekranın ortasından başlasın (0-79)
+int mouse_y = 12; // Ekranın ortasından başlasın (0-24)
+uint8_t mouse_cycle = 0;
+int8_t mouse_byte[3];
+
+// VGA Bellek Adresi ve Renk Tanımları
+#define VGA_START 0xB8000
+#define COLOR_WINDOWS_BLUE 0x1F  // Arka plan: Mavi, Yazı: Beyaz
+#define COLOR_BUTTON_ACTIVE 0x70 // Arka plan: Gri/Beyaz, Yazı: Siyah
+
+// Port İşlemleri
 static inline uint8_t inb(uint16_t port) {
     uint8_t data;
     __asm__ __volatile__("inb %1, %0" : "=a"(data) : "Nd"(port));
     return data;
 }
 
-// String Karşılaştırma
-int sky_strcmp(const char* s1, const char* s2) {
-    while (*s1 && (*s1 == *s2)) {
-        s1++;
-        s2++;
-    }
-    return *(unsigned char*)s1 - *(unsigned char*)s2;
+static inline void outb(uint16_t port, uint8_t val) {
+    __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
-// UI Gecikme Fonksiyonu
-void sky_ui_delay(int count) {
-    for (volatile int i = 0; i < count * 80000; i++);
+// Fare Çipini (PS/2 Auxiliary Device) Aktif Etme Fonksiyonu
+void init_mouse(void) {
+    uint8_t status;
+
+    // Fareyi aktif et komutu gönder
+    outb(0x64, 0xA8);
+    
+    // Komut göndermeden önce durum portunu bekle
+    while((inb(0x64) & 0x02));
+    outb(0x64, 0x20); // Komut byte'ını oku
+    
+    while(!(inb(0x64) & 0x01));
+    status = (inb(0x60) | 0x02); // Enable Interrupt biti aktif (Gerçi polling yapıyoruz ama çip için şart)
+    
+    while((inb(0x64) & 0x02));
+    outb(0x64, 0x60);
+    
+    while((inb(0x64) & 0x02));
+    outb(0x60, status);
+    
+    // Fareye varsayılan ayarları yükle
+    while((inb(0x64) & 0x02));
+    outb(0x64, 0xD4);
+    while((inb(0x64) & 0x02));
+    outb(0x60, 0xF4); // Veri akışını başlat
+    
+    inb(0x60); // Akıştaki çöp veriyi temizle
 }
 
-// TÜM EKRANI BEMBEYAZ BOYAYAN ANDROID UI MOTORU
-void paint_android_bg(void) {
-    // VGA Metin Modu Belleği: 0xB8000
-    // 80 sütun x 25 satır = 2000 hücre
-    // Renk Kodu: 0x70 (Arka Plan: Gri/Beyaz, Yazı: Siyah)
-    uint16_t *vga_buffer = (uint16_t*)0xB8000;
+// Ekranı Windows Mavisine Boyayan Grafik Motoru
+void paint_windows_bg(void) {
+    uint16_t *vga_buffer = (uint16_t*)VGA_START;
     for (int i = 0; i < 80 * 25; i++) {
-        vga_buffer[i] = (0x70 << 8) | ' '; 
+        vga_buffer[i] = (COLOR_WINDOWS_BLUE << 8) | ' '; 
     }
-    // İmleci sol üste çekmek için screen.c'nin ekran temizleme fonksiyonunun mantığını taklit ediyoruz
     sky_clear_screen(); 
 }
 
-// Renkli ve Arka Planlı Yazı Basma Köprüsü
-// NOT: screen.c içindeki standart sky_print'i beyaz arka plana uyarlıyoruz
-void ui_print(const char* str) {
-    sky_print(str);
-}
-
-// Android UI Çizim Merkezi
-void draw_android_ui(void) {
-    paint_android_bg(); // Ekranı full beyaz yap
+// Windows OOBE Arayüz Çizicisi
+void draw_windows_ui(void) {
+    paint_windows_bg();
     
-    // STATE 0: HOŞ GELDİNİZ & BAŞLAYIN
     if (setup_state == 0) {
-        ui_print("\n\n\n\n\n");
-        ui_print("                         H O S   G E L D I N I Z\n");
-        ui_print("                        -------------------------\n\n\n");
-        ui_print("                                 Sky-OS\n");
-        ui_print("                       Android Tarzi Kurulum Sihirbazi\n\n\n\n\n\n\n");
-        ui_print("                      _______________________________ \n");
-        ui_print("                     [       ==  BASLAYIN  ==        ]\n");
-        ui_print("                      ------------------------------- \n");
-        ui_print("\n\n                             ( Gecmek icin ENTER )");
+        sky_print("\n\n                  W I N D O W S   S T Y L E   O O B E\n");
+        sky_print("               -------------------------------------------\n\n\n");
+        sky_print("         Bolge secimiyle baslayalim. Dogru yer mi?\n\n");
+        sky_print("                     [  Turkiye  ]\n\n\n\n\n\n");
+        sky_print("         -----------------------------------------------------\n");
+        sky_print("         | FARE ILE TIKLA ->    [ ILERI ] (X:40-48, Y:15)    |\n");
+        sky_print("         -----------------------------------------------------\n");
     }
-    // STATE 1: WI-FI ŞİFRE / ATLA
     else if (setup_state == 1) {
-        ui_print("\n\n\n");
-        ui_print("                            W I - F I   A G I\n");
-        ui_print("                        -------------------------\n\n");
-        ui_print("                         Ag: [ Sky_Net_5G_Fiber ]\n\n\n");
-        ui_print("                   Lutfen Sifreyi Girin:\n");
-        ui_print("                   Sifre Kutusu: [ ");
-        // Kullanıcının yazdığı şifre yıldızları buraya gelecek
+        sky_print("\n\n                  W I N D O W S   S T Y L E   O O B E\n");
+        sky_print("               -------------------------------------------\n\n\n");
+        sky_print("         Bir aga baglanma zamani. Internetiniz aktif mi?\n\n");
+        sky_print("                     Ag: [ Sky_Net_5G_Fiber ]\n\n\n\n");
+        sky_print("         -----------------------------------------------------\n");
+        sky_print("         | FARE ILE SECİN ->    [ ATLA ]  (X:40-48, Y:14)    |\n");
+        sky_print("         -----------------------------------------------------\n");
     }
-    // STATE 2: SAAT BELİRLE / ATLA
     else if (setup_state == 2) {
-        ui_print("\n\n\n");
-        ui_print("                        S A A T   A Y A R L A R I\n");
-        ui_print("                        -------------------------\n\n\n");
-        ui_print("             Manuel Saat Girin (Ornek: 14:35)\n");
-        ui_print("             Eger Wi-Fi'dan otomatik alinsin istiyorsaniz bos birakin.\n\n\n");
-        ui_print("                   Saat Kutusu: [ ");
-        // Saat karakterleri buraya gelecek
+        sky_print("\n\n                  W I N D O W S   S T Y L E   O O B E\n");
+        sky_print("               -------------------------------------------\n\n\n");
+        sky_print("         Zaman ve Tarih Esitlemesi yapiliyor...\n\n");
+        sky_print("         Saat otomatik senkronize edilsin mi?\n\n\n\n");
+        sky_print("         -----------------------------------------------------\n");
+        sky_print("         | FARE ILE SECİN ->    [ ONAYLA ] (X:40-48, Y:14)   |\n");
+        sky_print("         -----------------------------------------------------\n");
     }
-    // STATE 3: KURULUM BİTTİ / BAŞLAYABİLİRSİNİZ
     else if (setup_state == 3) {
-        ui_print("\n\n\n\n\n");
-        ui_print("                           K U R U L U M   B I T T I\n");
-        ui_print("                        -------------------------\n\n\n");
-        ui_print("                        Sistem kullanima tamamen hazir!\n\n\n\n\n\n");
-        ui_print("                      _______________________________ \n");
-        ui_print("                     [  == BASLAYABILIRSINIZ (ENTER) == ]\n");
-        ui_print("                      ------------------------------- \n");
+        sky_print("\n\n\n\n\n               H A Z I R S I N I Z ! \n");
+        sky_print("               -------------------------------------------\n\n");
+        sky_print("         Windows tabanli Sky-OS kurulum sihirbazi bitti.\n\n\n\n\n");
+        sky_print("         -----------------------------------------------------\n");
+        sky_print("         | FARE ILE TIKLA ->    [ BASLAYIN ] (X:40-50, Y:15) |\n");
+        sky_print("         -----------------------------------------------------\n");
     }
-    // STATE 4: GERÇEK BEYAZ ANDROID MASAÜSTÜ KABUĞU
     else if (setup_state == 4) {
-        ui_print("========================================================================\n");
-        ui_print("  Sky-OS Android-UI Shell v0.8 | Saat: ");
-        ui_print(user_time);
-        ui_print(" | Net: ");
-        if (wifi_pass_idx > 0) ui_print("Bagli (Sky_Net_5G)\n");
-        else ui_print("Atlandi (Cevrimdisi)\n");
-        ui_print("========================================================================\n");
-        ui_print(" Android UI Masaustu Aktif! 'help' veya 'neofetch' yazabilirsiniz.\n\n");
-        ui_print("SkyOS> ");
+        sky_print("========================================================================\n");
+        sky_print(" Windows OOBE Shell Loaded v0.9 | Donanim Kontrolu Tamamen Mouse Ile Aktif\n");
+        sky_print("========================================================================\n\n");
+        sky_print(" Kurulum bitti usta! Fareyi ekranda oynatabilirsin.\n");
+        sky_print(" [ NOT: Fare imleci ekranda yanip sonen 'X' harfidir! ]\n\n");
+        sky_print("SkyOS> ");
     }
 }
 
-// Komut İşleme Merkezi (Sadece Masaüstündeyken çalışır)
-void run_command(const char* cmd) {
-    ui_print("\n");
-    if (sky_strcmp(cmd, "help") == 0) {
-        ui_print("--- Kullanilabilir Komutlar ---\n");
-        ui_print("help     : Komut listesi\n");
-        ui_print("neofetch : Sistem ozellikleri\n");
-        ui_print("clear    : Ekran temizleme\n");
-    } else if (sky_strcmp(cmd, "neofetch") == 0) {
-        ui_print("   Sky-OS Freestanding OS\n");
-        ui_print("   UI Tarzi: Android Beyaz Temali OOBE\n");
-        ui_print("   Gelistirici: Efe-Elite-Dev\n");
-    } else if (sky_strcmp(cmd, "clear") == 0) {
-        draw_android_ui();
-    } else if (sky_strcmp(cmd, "") == 0) {
-        // Boş enter
-    } else {
-        ui_print("Bilinmeyen komut!\n");
+// Fare Tıklaması Algılandığında Koordinat Kontrolü Yapan Hitbox Motoru
+void handle_mouse_click(void) {
+    // ADIM 0: İLERİ BUTONU KONTROLÜ (X:40 ile 48 arası, Y:15 civarı)
+    if (setup_state == 0) {
+        if (mouse_x >= 40 && mouse_x <= 52 && mouse_y >= 13 && mouse_y <= 17) {
+            setup_state = 1;
+            draw_windows_ui();
+        }
+    }
+    // ADIM 1: ATLA BUTONU KONTROLÜ
+    else if (setup_state == 1) {
+        if (mouse_x >= 40 && mouse_x <= 52 && mouse_y >= 12 && mouse_y <= 16) {
+            setup_state = 2;
+            draw_windows_ui();
+        }
+    }
+    // ADIM 2: ONAYLA BUTONU KONTROLÜ
+    else if (setup_state == 2) {
+        if (mouse_x >= 40 && mouse_x <= 52 && mouse_y >= 12 && mouse_y <= 16) {
+            setup_state = 3;
+            draw_windows_ui();
+        }
+    }
+    // ADIM 3: BAŞLAYIN BUTONU KONTROLÜ
+    else if (setup_state == 3) {
+        if (mouse_x >= 40 && mouse_x <= 52 && mouse_y >= 13 && mouse_y <= 17) {
+            setup_state = 4;
+            draw_windows_ui();
+        }
     }
 }
 
-// Android Klavye ve Akış Yönetimi
-void handle_keyboard_polling(void) {
-    if (inb(0x64) & 0x01) {
+// Ekrana Fare İmlecini ('X') Basan Grafiksel Yenileyici
+void refresh_mouse_pointer(int old_x, int old_y) {
+    uint16_t *vga_buffer = (uint16_t*)VGA_START;
+    
+    // Eski farenin durduğu yerdeki 'X' işaretini temizle, orayı normal boşluğa geri döndür
+    vga_buffer[old_y * 80 + old_x] = (COLOR_WINDOWS_BLUE << 8) | ' ';
+    
+    // Yeni farenin koordinatına Parlak Kırmızı renkli bir 'X' imleci bas!
+    // Renk Kodu: 0x1C (Mavi arka plan üzerinde Parlak Kırmızı harf)
+    vga_buffer[mouse_y * 80 + mouse_x] = (0x1C << 8) | 'X';
+}
+
+// Klavye & Fare Çiftli Donanım Tarayıcı (Ultra Polling Combo)
+void handle_hardware_polling(void) {
+    uint8_t status = inb(0x64);
+    
+    // 1. FARE VERİSİ GELDİ Mİ? (0x64 portunun 5. biti (0x20) fareyi gösterir)
+    if ((status & 0x01) && (status & 0x20)) {
+        uint8_t data = inb(0x60);
+        mouse_byte[mouse_cycle++] = data;
+        
+        if (mouse_cycle == 3) { // 3 byte'lık tam fare paketi tamamlandı!
+            mouse_cycle = 0;
+            
+            // Sol tık yapıldı mı kontrol et (İlk byte'ın ilk biti sol tıktır!)
+            if (mouse_byte[0] & 0x01) {
+                handle_mouse_click();
+                return;
+            }
+            
+            // X ve Y hareketlerini işle (Hassasiyeti ayarlamak için 4'e bölüyoruz)
+            int old_x = mouse_x;
+            int old_y = mouse_y;
+            
+            int8_t move_x = mouse_byte[1];
+            int8_t move_y = mouse_byte[2];
+            
+            mouse_x += (move_x / 4);
+            mouse_y -= (move_y / 4); // VGA ekranında y koordinatı aşağı doğru artar
+            
+            // Ekran sınırlarından dışarı taşmayı engelle (Sınır koruması)
+            if (mouse_x < 0) mouse_x = 0;
+            if (mouse_x > 79) mouse_x = 79;
+            if (mouse_y < 0) mouse_y = 0;
+            if (mouse_y > 24) mouse_y = 24;
+            
+            // Fare hareket ettiyse imleci ekranda güncelle
+            if (old_x != mouse_x || old_y != mouse_y) {
+                refresh_mouse_pointer(old_x, old_y);
+            }
+        }
+    }
+    
+    // 2. KLAVYE VERİSİ GELDİ Mİ?
+    else if ((status & 0x01) && !(status & 0x20)) {
         uint8_t scancode = inb(0x60);
-        if (!(scancode & 0x80)) {
+        if (!(scancode & 0x80) && setup_state == 4) { // Sadece masaüstündeyken klavyeyi dinle
             static const char kbd_us[128] = {
                 0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
               '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
@@ -152,103 +222,36 @@ void handle_keyboard_polling(void) {
               ' ',   0
             };
             char key = kbd_us[scancode];
-            if (key == 0) return;
-
-            // ADIM 0: BAŞLAYIN BUTONU
-            if (setup_state == 0) {
-                if (key == '\n') {
-                    setup_state = 1; // Wi-Fi adımına geç
-                    draw_android_ui();
+            if (key == '\n') {
+                cmd_buffer[cmd_index] = '\0';
+                sky_print("\n");
+                if (sky_strcmp(cmd_buffer, "neofetch") == 0) {
+                    sky_print("   Sky-OS x86 Windows-OOBE Edition\n");
+                    sky_print("   Donanim: Kesmesiz Saf Mouse Sürücüsü Aktif!\n");
+                } else {
+                    sky_print("Komut tespiti basarili.\n");
                 }
-            }
-            // ADIM 1: WI-FI ŞİFRESİ VEYA ATLA
-            else if (setup_state == 1) {
-                if (key == '\n') {
-                    user_wifi_pass[wifi_pass_idx] = '\0';
-                    // Animasyon efekti: Şifreyi girince veya boş bırakıp (Atla) yapınca geçiş hissi
-                    ui_print(" ]\n\n                   Lutfen bekleyin...");
-                    sky_ui_delay(3000);
-                    
-                    setup_state = 2; // Saat adımına geç
-                    draw_android_ui();
-                } 
-                else if (key == '\b') {
-                    if (wifi_pass_idx > 0) {
-                        wifi_pass_idx--;
-                        sky_print("\b \b");
-                    }
-                } 
-                else if (wifi_pass_idx < 63 && key != ' ') {
-                    user_wifi_pass[wifi_pass_idx++] = key;
-                    sky_put_char('*'); // Şifreyi gizle
-                }
-            }
-            // ADIM 2: SAAT BELİRLE VEYA ATLA (Wi-Fi'dan otomatik al)
-            else if (setup_state == 2) {
-                if (key == '\n') {
-                    if (time_idx > 0) {
-                        user_time[time_idx] = '\0'; // Kullanıcı saatini kaydet
-                    } else {
-                        // Eğer boş bırakıp atladıysa otomatik Wi-Fi saati devreye giriyor!
-                        user_time[0] = '1'; user_time[1] = '2'; user_time[2] = ':';
-                        user_time[3] = '0'; user_time[4] = '0'; user_time[5] = '\0';
-                    }
-                    ui_print(" ]\n\n                   Ayarlar kaydediliyor...");
-                    sky_ui_delay(3000);
-                    
-                    setup_state = 3; // Kurulum bitti adımına geç
-                    draw_android_ui();
-                } 
-                else if (key == '\b') {
-                    if (time_idx > 0) {
-                        time_idx--;
-                        sky_print("\b \b");
-                    }
-                } 
-                else if (time_idx < 15) {
-                    user_time[time_idx++] = key;
-                    sky_put_char(key);
-                }
-            }
-            // ADIM 3: KURULUM BİTTİ BASLİYABİLİRSİNİZ BUTONU
-            else if (setup_state == 3) {
-                if (key == '\n') {
-                    setup_state = 4; // Gerçek Android temalı masaüstü kabuğuna at
-                    draw_android_ui();
-                }
-            }
-            // ADIM 4: GERÇEK MASAÜSTÜ VE KOMUT SATIRI
-            else if (setup_state == 4) {
-                if (key == '\n') {
-                    cmd_buffer[cmd_index] = '\0';
-                    run_command(cmd_buffer);
-                    cmd_index = 0;
-                    ui_print("SkyOS> ");
-                } 
-                else if (key == '\b') {
-                    if (cmd_index > 0) {
-                        cmd_index--;
-                        sky_print("\b \b");
-                    }
-                } 
-                else if (cmd_index < 255) {
-                    cmd_buffer[cmd_index++] = key;
-                    sky_put_char(key);
-                }
+                cmd_index = 0;
+                sky_print("SkyOS> ");
+            } else if (cmd_index < 255 && key != 0) {
+                cmd_buffer[cmd_index++] = key;
+                sky_put_char(key);
             }
         }
     }
 }
 
 void kernel_main(void) {
-    // Kurulum sihirbazını başlatıyoruz
+    // 1. Ekranı ve Kurulumu Başlat
     setup_state = 0;
-    draw_android_ui();
+    draw_windows_ui();
+    
+    // 2. Fare Donanımını Ateşle
+    init_mouse();
 
-    inb(0x60); // Klavye portunu sıfırla
-
+    // Ana Donanım Döngüsü
     while (1) {
-        handle_keyboard_polling();
-        for (volatile int i = 0; i < 1000; i++);
+        handle_hardware_polling();
+        for (volatile int i = 0; i < 500; i++); // İşlemciyi dengele
     }
 }
