@@ -1,49 +1,63 @@
-#include "sky_subsystem.h"
-#include "gui.h"
+bits 32
 
-// kernel.c veya sky_subsystem.c içinden gelen gerçek donanım adres köprüleri
-extern uint32_t* vbe_vram;
-extern uint32_t  vbe_pitch;
+; Multiboot Makroları
+MODULEALIGN equ 1 << 0
+MEMINFO     equ 1 << 1
+GRAPHICS    equ 1 << 2  ; GRUB'a VBE Grafik Modunu zorla açtırır
+FLAGS       equ MODULEALIGN | MEMINFO | GRAPHICS
+MAGIC       equ 0x1BADB002
+CHECKSUM    equ -(MAGIC + FLAGS)
 
-/**
- * 🎨 GENEL DİKDÖRTGEN ÇİZME MOTORU
- * exe_subsystem.c'nin pencereleri çizmek için aradığı ve Linker'ın hata verdiği asıl fonksiyon!
- */
-void gui_draw_rect(int x, int y, int width, int height, uint32_t color) {
-    // KORUMA KATMANI: Eğer VRAM adresi henüz yüklenmediyse çizim yapıp sistemi çökertme
-    if (vbe_vram == 0) {
-        return;
-    }
+section .multiboot
+align 4
+    dd MAGIC
+    dd FLAGS
+    dd CHECKSUM
+    
+    ; Grafik ayarları için GRUB dolgu alanları
+    dd 0, 0, 0, 0, 0
+    dd 0        ; 0 = Lineer Grafik (LFB) Modu
+    dd 800      ; Ekran Genişliği
+    dd 600      ; Ekran Yüksekligi
+    dd 32       ; Renk Derinliği (BPP)
 
-    // Sanal makinenin padding (tampon) piksellerini hesaba katan milimetrik genişlik hizalaması
-    uint32_t width_pixels = vbe_pitch / 4;
+section .text
+global _start
+global load_idt
+global keyboard_handler_asm
 
-    for (int curr_y = y; curr_y < y + height; curr_y++) {
-        // EKRAN SINIR KORUMASI: Sınırların dışına taşarsa es geç (Buffer Overflow Önleyici)
-        if (curr_y < 0 || curr_y >= 600) continue;
+extern kernel_main
+extern keyboard_handler  ; keyboard.c veya idt.c içindeki C fonksiyonun
 
-        for (int curr_x = x; curr_x < x + width; curr_x++) {
-            if (curr_x < 0 || curr_x >= 800) continue;
+_start:
+    cli                         ; Kesmeleri kapat
+    mov esp, stack_space        ; Güvenli Stack alanını yükle
 
-            // Çizgilerin kaymasını ve mor parazitleri engelleyen dinamik indeksleme formülü
-            uint32_t pixel_index = (curr_y * width_pixels) + curr_x;
-            vbe_vram[pixel_index] = color;
-        }
-    }
-}
+    ; === MULTIBOOT KÖPRÜSÜ ===
+    push ebx                    ; GRUB multiboot_info adresini C çekirdeğine pasla
+    
+    call kernel_main            ; Çekirdeği başlat
 
-/**
- * 🚀 MASAÜSTÜ YENİLEME MOTORU
- * Kernel'ın döngü içinde ekranı tazelemek için çağırdığı ana grafik fonksiyonu.
- */
-void gui_refresh_desktop(void) {
-    if (vbe_vram == 0) {
-        return;
-    }
+.hang:
+    hlt
+    jmp .hang
 
-    // 1. Tüm ekranı şık bir Gece Mavisine boyayarak mor/dikey çizgileri yok ediyoruz
-    gui_draw_rect(0, 0, 800, 600, 0x1A1A2E);
+; === IDT TABLOSUNU İŞLEMCİYE YÜKLEYEN ASKER ===
+load_idt:
+    mov edx, [esp + 4]          ; C'den gelen IDT pointer adresini al
+    lidt [edx]                  ; IDT'yi CPU'ya yükle
+    sti                         ; Kesmeleri tekrar aktif et
+    ret
 
-    // 2. Ekranın tam ortasına ilk işletim sistemi amblemimizi konduruyoruz (Saf Beyaz Kare)
-    gui_draw_rect(350, 250, 100, 100, 0xFFFFFF);
-}
+; === KLAVYE INTERRUPT KÖPRÜSÜ (IRQ 1) ===
+keyboard_handler_asm:
+    pusha                       ; Tüm genel amaçlı yazmaçları korumaya al
+    call keyboard_handler       ; C dilindeki asıl klavye işleyicisini çağır
+    popa                        ; Yazmaçları geri yükle
+    iretd                       ; Kesme dönüşü yap (Interrupt Return)
+
+section .bss
+align 16
+stack_bottom:
+resb 16384                      ; Çekirdek için 16KB güvenli çalışma alanı
+stack_space:
