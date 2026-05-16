@@ -1,53 +1,46 @@
-#include "keyboard.h"
-#include "screen.h"
+#include <stdint.h>
 
-static const char kbd_us[128] = {
+// kernel.c içindeki köprü fonksiyonunu buraya bağlıyoruz
+extern void sky_put_char(char c);
+
+// Basit scancode to ascii tablosu
+static char scancode_to_ascii[] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-  '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
-    0,  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',   0,
- '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0,   '*',   0,
-  ' ',   0
+  '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\n',      
+    0,  'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', '\'', '`',   0,      
+ '\\', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/',   0, '*',   0, ' '
 };
 
-static inline unsigned char inb(unsigned short port) {
-    unsigned char data;
+static inline uint8_t inb(uint16_t port) {
+    uint8_t data;
     __asm__ __volatile__("inb %1, %0" : "=a"(data) : "Nd"(port));
     return data;
 }
 
-static inline void outb(unsigned short port, unsigned char val) {
-    __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-
-void init_keyboard(void) {
-    unsigned char dummy = inb(0x60); // Portu temizle
-}
-
-// Donanımsal Polling Fonksiyonu (IDT'den bağımsız kesin çözüm)
+// Polling (Döngü ile klavye okuma) fonksiyonu
 void check_keyboard_polling(void) {
-    // 0x64 portu klavyenin durum (status) bilgisini verir.
-    // Eğer en sağdaki bit (0x01) 1 ise, klavyede yeni bir tuş verisi var demektir!
-    if (inb(0x64) & 0x01) {
-        unsigned char scancode = inb(0x60); // Harfi oku
-        
-        // Sadece tuşa basılma anını yakala
-        if (!(scancode & 0x80)) {
-            char key = kbd_us[scancode];
-            if (key != 0) {
-                sky_put_char(key);
+    if (inb(0x64) & 1) {
+        uint8_t scancode = inb(0x60);
+        if (!(scancode & 0x80)) { // Tuşa basılma anı (Release değilse)
+            if (scancode < sizeof(scancode_to_ascii)) {
+                char ascii = scancode_to_ascii[scancode];
+                if (ascii != 0) {
+                    sky_put_char(ascii); // kernel.c'deki köprüye gönder
+                }
             }
         }
     }
 }
 
-// IDT üzerinden tetiklenen eski handler (Yine de dursun)
+// Kesme (Interrupt) geldiğinde çalışacak ana fonksiyon
 void keyboard_handler(void) {
-    unsigned char scancode = inb(0x60);
+    uint8_t scancode = inb(0x60);
     if (!(scancode & 0x80)) {
-        char key = kbd_us[scancode];
-        if (key != 0) {
-            sky_put_char(key);
+        if (scancode < sizeof(scancode_to_ascii)) {
+            char ascii = scancode_to_ascii[scancode];
+            if (ascii != 0) {
+                sky_put_char(ascii); 
+            }
         }
     }
-    outb(0x20, 0x20); // EOI
 }
