@@ -2,6 +2,7 @@
 #include "mouse.h"
 #include "gui.h"
 
+// Alt sistemlerin ve yapay zekanın fonksiyon köprüleri
 extern int ai_predict_hardware_load(int mouse_delta_x, int loop_count);
 extern uint32_t* vbe_vram; 
 extern uint32_t  vbe_pitch;
@@ -10,27 +11,29 @@ static inline void io_wait(void) {
     asm volatile ("outb %%al, $0x80" : : "a"(0));
 }
 
-// Güvenli ana giriş kapısı
+/**
+ * 🚀 KUSURSUZ x86 ÇEKİRDEK GİRİŞ KAPISI
+ */
 void kernel_main(struct multiboot_info* mboot) {
     
-    // KORUMA: Eğer Stack köprüsü başarıyla kurulduysa ve GRUB adresi pasladıysa
-    if (mboot != 0 && (mboot->flags & (1 << 11))) {
+    // x86 GÜVENLİ GRAPHICS KONTROLÜ
+    if (mboot != 0 && (mboot->framebuffer_addr != 0)) {
         vbe_vram = (uint32_t*)(uintptr_t)mboot->framebuffer_addr;
         vbe_pitch = mboot->framebuffer_pitch;
     } else {
-        // Fallback: Eğer donanım adresi bozuk gelirse çökme yapmaması için güvenli adres tanımla
-        vbe_vram = (uint32_t*)0xFD000000; // Standart sanal VRAM başlangıç tahmini
+        // FALLBACK: Adres bozuk gelirse VirtualBox varsayılan LFB alanı
+        vbe_vram = (uint32_t*)0xE0000000; 
         vbe_pitch = 800 * 4;
     }
 
-    // Donanım Sürücüleri ve Grafik Başlatma (Senin mevcut kodların)
+    // === SÜRÜCÜLER VE GRAFİK BAŞLATMA ===
     init_mouse();
     gui_refresh_desktop();
 
     uint32_t refresh_counter = 0;
     int current_wait_cycles = 30;
 
-    // === YAPAY ZEKA DESTEKLİ ANA DÖNGÜN (Aynen Korunuyor) ===
+    // === YAPAY ZEKA DESTEKLİ ANA DÖNGÜ ===
     while (1) {
         handle_mouse_polling();
         
