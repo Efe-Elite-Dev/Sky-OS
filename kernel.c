@@ -9,13 +9,13 @@
 #define TOTAL_PIXELS     (SCREEN_WIDTH * SCREEN_HEIGHT)
 
 // Windows 11 / Akıcı Arayüz Renk Paleti (Hex Format)
-#define COLOR_BG         0x0A0F24  // Derin Modern Gece Mavisi Arka Plan
-#define COLOR_TASKBAR    0x1A2342  // Yarı Saydam Efektli Koyu Görev Çubuğu (Blended)
-#define COLOR_ACCENT     0x0078D4  // Standart Microsoft Mavisi
-#define COLOR_WIN_BG     0xFFFFFF  // Net Beyaz Pencere İçeriği
-#define COLOR_WIN_TITLE  0x0F172A  // Premium Koyu Başlık Çubuğu
-#define COLOR_MODERN_RED 0xE81123  // Kapatma Butonu Kırmızısı
-#define COLOR_CURSOR     0x00A2ED  // Parlak Mavi Modern İmleç
+#define COLOR_BG         0x0A0F24  
+#define COLOR_TASKBAR    0x1A2342  
+#define COLOR_ACCENT     0x0078D4  
+#define COLOR_WIN_BG     0xFFFFFF  
+#define COLOR_WIN_TITLE  0x0F172A  
+#define COLOR_MODERN_RED 0xE81123  
+#define COLOR_CURSOR     0x00A2ED  
 
 // Sistem Durum Değişkenleri
 int active_window = 0; 
@@ -27,28 +27,39 @@ uint8_t mouse_cycle = 0;
 int8_t mouse_byte[3];
 
 // ====================================================================
-// 2. DOUBLE BUFFERING (ÇİFT TAMPON) MOTORU - GLITCH ENGELLEYİCİ
+// 2. GELİŞMİŞ PENCERE YÖNETİCİSİ (WINDOW MANAGER) YAPISI
 // ====================================================================
-// Ekran kartı belleğine (VRAM) doğrudan sürekli yazmak yerine, 
-// önce RAM üzerinde her şeyi çizeceğimiz sahte bir ekran tamponu oluşturuyoruz.
+// Bu yapı sayesinde işletim sisteminde pencerelerin konumları dinamik olarak değişebilir!
+typedef struct {
+    int x;
+    int y;
+    int width;
+    int height;
+    int is_dragging;   // Fareyle sürükleniyor mu?
+    int drag_offset_x; // Tıklanan noktanın pencere köşesine olan uzaklığı
+    int drag_offset_y;
+} Window;
+
+// Ana uygulama penceremizi tanımlıyoruz (Varsayılan konum ve boyutlar)
+Window app_window = {262, 184, 500, 350, 0, 0, 0};
+
+// ====================================================================
+// 3. DOUBLE BUFFERING (ÇIFT TAMPON) MOTORU - GLITCH ENGELLEYİCİ
+// ====================================================================
 uint32_t back_buffer[TOTAL_PIXELS];
 
-// RAM'deki sahte ekranda piksel boyama
 void gui_put_pixel(int x, int y, uint32_t color) {
     if (x < 0 || x >= SCREEN_WIDTH || y < 0 || y >= SCREEN_HEIGHT) return;
     back_buffer[y * SCREEN_WIDTH + x] = color;
 }
 
-// RAM'de hazırlanan sahte ekranı TEK SEFERDE gerçek VRAM'e fırlatma fonksiyonu
 void vga_flush(void) {
     uint32_t *vram = (uint32_t*)VBE_START_ADDR;
-    // Donanımsal olarak en hızlı kopyalama yöntemi (Unrolled loop veya flat copy)
     for (int i = 0; i < TOTAL_PIXELS; i++) {
         vram[i] = back_buffer[i];
     }
 }
 
-// Modern Donanımsal Renk Karıştırma (Alpha Blending)
 uint32_t mix_colors(uint32_t bg, uint32_t fg, uint8_t alpha) {
     if (alpha == 255) return fg;
     if (alpha == 0) return bg;
@@ -63,7 +74,6 @@ uint32_t mix_colors(uint32_t bg, uint32_t fg, uint8_t alpha) {
     return (res_r << 16) | (res_g << 8) | res_b;
 }
 
-// Modern Saydam Dikdörtgen Çizimi
 void gui_draw_rect_alpha(int start_x, int start_y, int width, int height, uint32_t color, uint8_t alpha) {
     for (int y = start_y; y < start_y + height; y++) {
         for (int x = start_x; x < start_x + width; x++) {
@@ -75,7 +85,6 @@ void gui_draw_rect_alpha(int start_x, int start_y, int width, int height, uint32
     }
 }
 
-// Mat Düz Renk Blok Çizimi (Hızlı render)
 void gui_draw_rect(int start_x, int start_y, int width, int height, uint32_t color) {
     for (int y = start_y; y < start_y + height; y++) {
         for (int x = start_x; x < start_x + width; x++) {
@@ -84,7 +93,6 @@ void gui_draw_rect(int start_x, int start_y, int width, int height, uint32_t col
     }
 }
 
-// Oval Köşeli Modern Pencere Çizim Motoru
 void gui_draw_rounded_window(int sx, int sy, int w, int h, int r, uint32_t color, uint8_t alpha) {
     for (int y = sy; y < sy + h; y++) {
         for (int x = sx; x < sx + w; x++) {
@@ -106,14 +114,12 @@ void gui_draw_rounded_window(int sx, int sy, int w, int h, int r, uint32_t color
 }
 
 // ====================================================================
-// 3. MODERN WINDOWS 11 STİLİ ARAYÜZ BİLEŞENLERİ
+// 4. MODERN WINDOWS 11 STİLİ ARAYÜZ BİLEŞENLERİ
 // ====================================================================
 
-// Kusursuz Akıcı Degrade Duvar Kağıdı
 void gui_render_wallpaper(void) {
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
         for (int x = 0; x < SCREEN_WIDTH; x++) {
-            // Ağır işlem çarpanları temizlendi, akıcı ve şık degrade geçişi
             uint8_t r = 15 + (y / 32);  
             uint8_t g = 20 + (x / 40) + (y / 40);  
             uint8_t b = 50 + (x / 16); 
@@ -122,7 +128,6 @@ void gui_render_wallpaper(void) {
     }
 }
 
-// Sol Kenar Masaüstü Uygulama İkonları
 void gui_draw_icons(void) {
     // 1. EXE Subsystem İkonu
     gui_draw_rounded_window(40, 40, 40, 40, 8, 0x0078D4, 255);
@@ -137,43 +142,37 @@ void gui_draw_icons(void) {
     gui_draw_rect(52, 182, 16, 16, 0x1E1B4B); 
 }
 
-// Modern Akrilik Tasarımlı Pencere Kasası
-void gui_draw_window_frame(int win_x, int win_y, int win_w, int win_h) {
-    // Pencere Gölgesi (Glow efekti)
-    gui_draw_rect_alpha(win_x + 6, win_y + 6, win_w, win_h, 0x000000, 70);
-    // Ana Pencere Gövdesi (Yarı Saydam Akrilik Beyaz)
-    gui_draw_rounded_window(win_x, win_y, win_w, win_h, 12, COLOR_WIN_BG, 240); 
-    // Başlık Çubuğu
-    gui_draw_rounded_window(win_x, win_y, win_w, 36, 12, COLOR_WIN_TITLE, 255);
-    gui_draw_rect(win_x, win_y + 24, win_w, 12, COLOR_WIN_TITLE); // Köşe birleştirme yaması
-    // Sağ Üst Kapatma (X) Butonu
-    gui_draw_rounded_window(win_x + win_w - 44, win_y + 6, 36, 24, 6, COLOR_MODERN_RED, 255);
+// Dinamik Koordinat Destekli Pencere Kasası
+void gui_draw_window_frame(Window *win) {
+    // Pencere Gölgesi
+    gui_draw_rect_alpha(win->x + 6, win->y + 6, win->width, win->height, 0x000000, 70);
+    // Ana Gövde
+    gui_draw_rounded_window(win->x, win->y, win->width, win->height, 12, COLOR_WIN_BG, 240); 
+    // Sürüklenebilir Üst Başlık Barı (Title Bar)
+    gui_draw_rounded_window(win->x, win->y, win->width, 36, 12, COLOR_WIN_TITLE, 255);
+    gui_draw_rect(win->x, win->y + 24, win->width, 12, COLOR_WIN_TITLE); 
+    // Kapatma Butonu (X)
+    gui_draw_rounded_window(win->x + win->width - 44, win->y + 6, 36, 24, 6, COLOR_MODERN_RED, 255);
 }
 
-// Ortalanmış Windows 11 Tarzı Görev Çubuğu (Taskbar)
 void gui_render_taskbar(uint32_t tick_count) {
-    // Alt Bar Yuvarlatılmış Şeffaf Panel Ekranı Saplaması
     gui_draw_rounded_window(12, 714, SCREEN_WIDTH - 24, 46, 14, COLOR_TASKBAR, 210);
     
-    // Ortadaki Arama Çubuğu (Search Bar)
     int search_bar_x = (SCREEN_WIDTH / 2) - 100; 
     gui_draw_rounded_window(search_bar_x, 720, 200, 34, 8, 0xFFFFFF, 255);
     
-    // Başlat Menüsü ve Sabit Uygulama İkonları
     int start_icon_x = search_bar_x - 140;
     gui_draw_rounded_window(start_icon_x, 721, 32, 32, 8, COLOR_ACCENT, 255);      
     gui_draw_rounded_window(start_icon_x + 40, 721, 32, 32, 8, 0xFFB900, 255); 
     gui_draw_rounded_window(start_icon_x + 80, 721, 32, 32, 8, 0x107C41, 255); 
 
-    // Sağ Alt Saat/Bildirim Alanındaki Küçük Yapay Zeka Nabız İndikatörü
     if ((tick_count / 30) % 2 == 0) {
-        gui_draw_rounded_window(980, 728, 16, 16, 8, 0x00E676, 255); // Canlı Yeşil
+        gui_draw_rounded_window(980, 728, 16, 16, 8, 0x00E676, 255); 
     } else {
-        gui_draw_rounded_window(980, 728, 16, 16, 8, 0x00B0FF, 255); // Akıllı Mavi
+        gui_draw_rounded_window(980, 728, 16, 16, 8, 0x00B0FF, 255); 
     }
 }
 
-// Keskin ve Modern Fare İmleci Tasarımı
 void gui_draw_mouse(int mx, int my) {
     uint32_t c = COLOR_CURSOR; uint32_t w = 0xFFFFFF; 
     gui_put_pixel(mx, my, c);
@@ -185,25 +184,22 @@ void gui_draw_mouse(int mx, int my) {
 }
 
 // ====================================================================
-// 4. MODÜLER ALTSİSTEM İÇERİK RENDERLARI
+// 5. MODÜLER ALTSİSTEM İÇERİK RENDERLARI (DİNAMİK KOORDİNATLI)
 // ====================================================================
 
 void run_exe_subsystem(int win_x, int win_y) {
     gui_draw_rect(win_x + 15, win_y + 50, 470, 285, 0xF8FAFC);
-    // Örnek modern Windows uygulama kutucukları
     gui_draw_rounded_window(win_x + 40, win_y + 80, 80, 60, 6, 0x38BDF8, 255);
     gui_draw_rounded_window(win_x + 140, win_y + 80, 80, 60, 6, 0x34D399, 255);
 }
 
 void run_deb_subsystem(int win_x, int win_y) {
-    gui_draw_rect(win_x + 15, win_y + 50, 470, 285, 0x0F172A); // Terminal Koyu Siyahı
-    gui_draw_rect(win_x + 35, win_y + 70, 20, 4, 0x38BDF8);    // Yanıp sönen imleç simülasyonu
+    gui_draw_rect(win_x + 15, win_y + 50, 470, 285, 0x0F172A); 
+    gui_draw_rect(win_x + 35, win_y + 70, 20, 4, 0x38BDF8);    
 }
 
 void run_sky_subsystem(int win_x, int win_y, uint32_t current_tick) {
     gui_draw_rect(win_x + 15, win_y + 50, 470, 285, 0x050515);
-    
-    // Yapay Zeka Görsel Ekolayzır Döngüsü (Hafif ve optimize)
     int pulse = (current_tick / 4) % 10;
     gui_draw_rect_alpha(win_x + 30, win_y + 120, 440, 160, 0x1E1B4B, 150); 
     for (int i = 0; i < 7; i++) {
@@ -212,28 +208,69 @@ void run_sky_subsystem(int win_x, int win_y, uint32_t current_tick) {
     }
 }
 
-// Tüm ekranı arka planda birleştiren ana üst fonksiyon
 void gui_refresh_desktop(int mx, int my, uint32_t tick) {
     gui_render_wallpaper();
     gui_draw_icons();
     
     if (active_window != 0) {
-        int wx = 262, wy = 184;
-        gui_draw_window_frame(wx, wy, 500, 350);
-        if (active_window == 1)      run_exe_subsystem(wx, wy);
-        else if (active_window == 2) run_deb_subsystem(wx, wy);
-        else if (active_window == 3) run_sky_subsystem(wx, wy, tick);
+        gui_draw_window_frame(&app_window);
+        if (active_window == 1)      run_exe_subsystem(app_window.x, app_window.y);
+        else if (active_window == 2) run_deb_subsystem(app_window.x, app_window.y);
+        else if (active_window == 3) run_sky_subsystem(app_window.x, app_window.y, tick);
     }
     
     gui_render_taskbar(tick);
     gui_draw_mouse(mx, my);
-    
-    // ARKA PLANDA ÇİZİLEN HER ŞEYİ TEK SEFERDE VRAM'E BASIYORUZ! (Sıfır Yırtılma)
     vga_flush();
 }
 
 // ====================================================================
-// 5. DONANIM SÜRÜCÜLERİ VE ÇEKİRDEK ANA DÖNGÜSÜ
+// 6. GELİŞMİŞ SÜRÜKLEME VE TIKLAMA ALGORİTMASI
+// ====================================================================
+
+void handle_desktop_click(int is_pressed) {
+    if (active_window != 0) {
+        // Kapatma butonu (X) tıklandı mı kontrolü
+        if (mouse_x >= (app_window.x + app_window.width - 44) && 
+            mouse_x <= (app_window.x + app_window.width - 8) && 
+            mouse_y >= (app_window.y + 6) && mouse_y <= (app_window.y + 30)) {
+            if (is_pressed) {
+                active_window = 0;
+                app_window.is_dragging = 0;
+                gui_refresh_desktop(mouse_x, mouse_y, system_ticks);
+                return;
+            }
+        }
+
+        // Pencerenin üst başlık çubuğuna (Title Bar) tıklandı mı? (Sürükleme Başlangıcı)
+        if (mouse_x >= app_window.x && mouse_x <= (app_window.x + app_window.width) &&
+            mouse_y >= app_window.y && mouse_y <= (app_window.y + 36)) {
+            if (is_pressed && !app_window.is_dragging) {
+                app_window.is_dragging = 1;
+                app_window.drag_offset_x = mouse_x - app_window.x;
+                app_window.drag_offset_y = mouse_y - app_window.y;
+            }
+        }
+    }
+
+    // Fare sol tıkı bırakıldıysa sürüklemeyi anında bitir
+    if (!is_pressed) {
+        app_window.is_dragging = 0;
+    }
+
+    // Eğer masaüstü boşsa ve ikonlara tıklandıysa ilgili alt sistemi aç
+    if (active_window == 0 && is_pressed) {
+        if (mouse_x >= 40 && mouse_x <= 80) {
+            if (mouse_y >= 40 && mouse_y <= 80) active_window = 1; 
+            else if (mouse_y >= 105 && mouse_y <= 145) active_window = 2; 
+            else if (mouse_y >= 170 && mouse_y <= 210) active_window = 3; 
+            gui_refresh_desktop(mouse_x, mouse_y, system_ticks);
+        }
+    }
+}
+
+// ====================================================================
+// 7. DONANIM SÜRÜCÜLERİ VE ÇEKİRDEK LOOPU
 // ====================================================================
 
 static inline uint8_t inb(uint16_t port) {
@@ -250,28 +287,6 @@ void sky_kernel_delay(int count) {
     for (volatile int i = 0; i < count * 800; i++);
 }
 
-// Masaüstü Tıklama Algılama Motoru
-void handle_desktop_click(void) {
-    if (active_window != 0) {
-        // Kapatma butonuna tıklandı mı? (X alanı)
-        if (mouse_x >= 718 && mouse_x <= 754 && mouse_y >= 190 && mouse_y <= 214) {
-            active_window = 0; 
-            gui_refresh_desktop(mouse_x, mouse_y, system_ticks);
-            return;
-        }
-    }
-    if (active_window == 0) {
-        // İkonların tıklama koordinatları kontrolü
-        if (mouse_x >= 40 && mouse_x <= 80) {
-            if (mouse_y >= 40 && mouse_y <= 80) active_window = 1; 
-            else if (mouse_y >= 105 && mouse_y <= 145) active_window = 2; 
-            else if (mouse_y >= 170 && mouse_y <= 210) active_window = 3; 
-            gui_refresh_desktop(mouse_x, mouse_y, system_ticks);
-        }
-    }
-}
-
-// PS/2 Fare Donanımı İlklendirme
 void init_mouse(void) {
     outb(0x64, 0xA8);
     while((inb(0x64) & 0x02));
@@ -289,7 +304,6 @@ void init_mouse(void) {
     inb(0x60); 
 }
 
-// Fare Verilerini Polling Yöntemiyle Kesintisiz Toplama
 void handle_mouse_polling(void) {
     uint8_t status = inb(0x64);
     if ((status & 0x01) && (status & 0x20)) {
@@ -299,12 +313,8 @@ void handle_mouse_polling(void) {
         if (mouse_cycle == 3) { 
             mouse_cycle = 0;
             
-            // Sol tık kontrolü
-            if (mouse_byte[0] & 0x01) {
-                handle_desktop_click();
-                sky_kernel_delay(15);
-                return;
-            }
+            // Fare buton durumunu yakala (Sol tık basılı mı kontrolü)
+            int left_button = (mouse_byte[0] & 0x01);
             
             int8_t move_x = mouse_byte[1];
             int8_t move_y = mouse_byte[2];
@@ -312,33 +322,39 @@ void handle_mouse_polling(void) {
             mouse_x += move_x;
             mouse_y -= move_y; 
             
-            // Ekran Sınır Koruyucuları
             if (mouse_x < 0) mouse_x = 0;
             if (mouse_x > SCREEN_WIDTH - 6) mouse_x = SCREEN_WIDTH - 6;
             if (mouse_y < 0) mouse_y = 0;
             if (mouse_y > SCREEN_HEIGHT - 6) mouse_y = SCREEN_HEIGHT - 6;
             
-            // Fare her hareket ettiğinde arka planda çiz ve ekrana bas!
+            // Eğer sürükleme modu aktifse, pencereyi farenin hareketine göre canlı güncelle!
+            if (app_window.is_dragging && left_button) {
+                app_window.x = mouse_x - app_window.x_offset; // Hata düzeltme yaması:
+                app_window.x = mouse_x - app_window.drag_offset_x;
+                app_window.y = mouse_y - app_window.drag_offset_y;
+                
+                // Pencerenin ekrandan tamamen çıkmasını engelle
+                if (app_window.x < 0) app_window.x = 0;
+                if (app_window.y < 0) app_window.y = 0;
+                if (app_window.x + app_window.width > SCREEN_WIDTH) app_window.x = SCREEN_WIDTH - app_window.width;
+            } else {
+                // Sürükleme durumu haricindeki normal tıklamaları veya bırakmaları işle
+                handle_desktop_click(left_button);
+            }
+            
             gui_refresh_desktop(mouse_x, mouse_y, system_ticks);
         }
     }
 }
 
-// ====================================================================
-// ÇEKİRDEK ANA GİRİŞ NOKTASI (KERNEL ENTRY)
-// ====================================================================
 void kernel_main(void) {
-    // İlk temiz ekranı arka plandan VRAM'e fırlat
     gui_refresh_desktop(mouse_x, mouse_y, system_ticks); 
     init_mouse();          
 
     while (1) {
-        // Fare donanımını dinle
         handle_mouse_polling();
-        
         system_ticks++;
         
-        // Görev çubuğundaki AI pulse animasyonu için ekranı belli aralıklarla hafifçe tetikle
         if (system_ticks % 250 == 0) { 
             gui_refresh_desktop(mouse_x, mouse_y, system_ticks);
         }
