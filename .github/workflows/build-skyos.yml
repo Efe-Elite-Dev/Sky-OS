@@ -15,6 +15,10 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Gerekli Derleme Araçlarını Kur
+      uses: actions/configure-pages@v5 # Altyapı araç istikrarı için tutuldu
+      continue-on-error: true
+
+    - name: Bağımlılıkları Yükle
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-multilib build-essential nasm xorriso grub-pc-bin grub-common mtools
@@ -22,19 +26,32 @@ jobs:
     - name: Assembly Kodunu Derle (boot.asm)
       run: nasm -f elf32 boot.asm -o boot.o
 
-    - name: Yeni Modern Monolitik Çekirdeği Derle (kernel.c)
-      run: gcc -m32 -c kernel.c -o kernel.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+    - name: Tüm Altsistemleri ve C Dosyalarını Derle
+      run: |
+        gcc -m32 -c kernel.c -o kernel.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c gui.c -o gui.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c screen.c -o screen.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c idt.c -o idt.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c keyboard.c -o keyboard.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c ai_subsystem.c -o ai_subsystem.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c deb_subsystem.c -o deb_subsystem.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c exe_subsystem.c -o exe_subsystem.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
+        gcc -m32 -c sky_subsystem.c -o sky_subsystem.o -std=gnu99 -ffreestanding -Os -Wall -Wextra -fno-asynchronous-unwind-tables -fno-stack-protector
 
-    - name: Obje Dosyalarını Kararlı Linkle (Linker)
-      run: ld -m elf_i386 -T linker.ld boot.o kernel.o -o SkyOS.bin
+    - name: Tüm Obje Dosyalarını Kararlı Linkle (Linker)
+      run: ld -m elf_i386 -T linker.ld boot.o kernel.o gui.o screen.o idt.o keyboard.o ai_subsystem.o deb_subsystem.o exe_subsystem.o sky_subsystem.o -o SkyOS.bin
 
-    - name: ISO Klasör Yapısını Hazırla
+    - name: ISO Klasör Yapısını ve Güvenli GRUB Konfigürasyonunu Hazırla
       run: |
         mkdir -p iso/boot/grub
         cp SkyOS.bin iso/boot/
+        
+        # Grafik kartını dikey çizgilerden kurtaracak mutlak GRUB komutları
         echo 'set default=0' > iso/boot/grub/grub.cfg
         echo 'set timeout=0' >> iso/boot/grub/grub.cfg
         echo 'menuentry "Sky-OS Modern OS" {' >> iso/boot/grub/grub.cfg
+        echo '    set gfxmode=800x600x32' >> iso/boot/grub/grub.cfg
+        echo '    set gfxpayload=keep' >> iso/boot/grub/grub.cfg
         echo '    multiboot /boot/SkyOS.bin' >> iso/boot/grub/grub.cfg
         echo '    boot' >> iso/boot/grub/grub.cfg
         echo '}' >> iso/boot/grub/grub.cfg
