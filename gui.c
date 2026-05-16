@@ -1,65 +1,43 @@
 #include "sky_subsystem.h"
-#include "mouse.h"
 #include "gui.h"
 
-// Alt sistemlerin ve yapay zekanın fonksiyon köprüleri
-extern int ai_predict_hardware_load(int mouse_delta_x, int loop_count);
-extern uint32_t* vbe_vram; 
+// Donanımsal adresler (x86 LFB köprüleri)
+extern uint32_t* vbe_vram;
 extern uint32_t  vbe_pitch;
 
-static inline void io_wait(void) {
-    asm volatile ("outb %%al, $0x80" : : "a"(0));
+/**
+ * 🎨 x86 STANDART DİKDÖRTGEN ÇİZME MOTORU
+ */
+void gui_draw_rect(int x, int y, int width, int height, uint32_t color) {
+    if (vbe_vram == 0) return;
+
+    // x86 standardında en güvenli satır genişliği hesabı
+    uint32_t width_pixels = (vbe_pitch > 0) ? (vbe_pitch / 4) : 800;
+
+    for (int curr_y = y; curr_y < y + height; curr_y++) {
+        // x86 Ekran Taşıma Koruması
+        if (curr_y < 0 || curr_y >= 600) continue;
+
+        for (int curr_x = x; curr_x < x + width; curr_x++) {
+            // x86 Yatay Piksel Sınırı
+            if (curr_x < 0 || curr_x >= 800) continue;
+
+            // Tam x86 lineer framebuffer indeksleme formülü
+            uint32_t pixel_index = (curr_y * width_pixels) + curr_x;
+            vbe_vram[pixel_index] = color;
+        }
+    }
 }
 
 /**
- * 🚀 KUSURSUZ x86 ÇEKİRDEK GİRİŞ KAPISI
+ * 🚀 MASAÜSTÜ YENİLEME MOTORU
  */
-void kernel_main(struct multiboot_info* mboot) {
-    
-    // x86 GÜVENLİ GRAPHICS KONTROLÜ
-    // GRUB'ın grafik flag'i (11. bit) veya framebuffer adresi dolu gelmiş mi bakıyoruz
-    if (mboot != 0 && (mboot->framebuffer_addr != 0)) {
-        
-        // Sanal makinenin bize pasladığı ham fiziksel adresi doğrudan VRAM pointer'ına eşitliyoruz
-        vbe_vram = (uint32_t*)(uintptr_t)mboot->framebuffer_addr;
-        vbe_pitch = mboot->framebuffer_pitch;
-        
-    } else {
-        // FALLBACK KATMANI: Eğer GRUB adresi paslayamazsa, VirtualBox'ın standart 
-        // LFB (Linear Framebuffer) güvenli bellek bölgesini zorla eşitle
-        vbe_vram = (uint32_t*)0xE0000000; 
-        vbe_pitch = 800 * 4;
-    }
+void gui_refresh_desktop(void) {
+    if (vbe_vram == 0) return;
 
-    // === SÜRÜCÜLER VE GRAFİK BAŞLATMA ===
-    init_mouse();
-    
-    // Masaüstünü yenile komutu artık doğru VRAM adresine gece mavisini basacak!
-    gui_refresh_desktop();
+    // Tüm ekranı saf x86 renk uzayında şık bir Gece Mavisine çekiyoruz
+    gui_draw_rect(0, 0, 800, 600, 0x1A1A2E);
 
-    uint32_t refresh_counter = 0;
-    int current_wait_cycles = 30;
-
-    // === YAPAY ZEKA DESTEKLİ ANA DÖNGÜN (KORUNUYOR) ===
-    while (1) {
-        handle_mouse_polling();
-        
-        refresh_counter++;
-        if (refresh_counter >= 150) {
-            gui_refresh_desktop();
-            refresh_counter = 0;
-        }
-        
-        int system_stress = ai_predict_hardware_load(10, refresh_counter);
-        
-        if (system_stress == 1) {
-            current_wait_cycles = 60;
-        } else {
-            current_wait_cycles = 15;
-        }
-
-        for (volatile int i = 0; i < current_wait_cycles; i++) {
-            io_wait();
-        }
-    }
+    // Tam ortaya beyaz amblemimizi çakıyoruz
+    gui_draw_rect(350, 250, 100, 100, 0xFFFFFF);
 }
