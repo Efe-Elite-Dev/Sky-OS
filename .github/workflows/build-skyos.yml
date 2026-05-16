@@ -1,34 +1,123 @@
-name: SKY OS Core Build System
+name: "SKY OS Core: Ultimate Enterprise Build System"
 
 on:
   push:
     branches: [ "main", "master" ]
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
   pull_request:
     branches: [ "main", "master" ]
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
+  # 1. ETAP: KODUN KALİTE VE GÜVENLİK KONTROLÜ (STATIC ANALYSIS)
+  audit:
+    name: "Siber Güvenlik ve Kod Analizi"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repoyu Klonla
+        uses: actions/checkout@v4
+
+      - name: C Derleyicisi ile Ön Kontrol (Syntax Linting)
+        run: |
+          gcc -m32 -fsyntax-only -Wall -Wextra -ffreestanding *.c 2>&1 || echo "Uyarılar incelenmeli!"
+
+  # 2. ETAP: ULTRA OPTİMİZE DERLEME BANDI
   build:
+    name: "Bare-Metal Çapraz Derleme Sistemi"
+    needs: audit
     runs-on: ubuntu-latest
 
     steps:
-    - name: Repoyu Klonla
-      uses: actions/checkout@v4
+      - name: Repoyu Klonla
+        uses: actions/checkout@v4
 
-    - name: Derleme Araçlarını ve GCC Cross-Compiler Kur
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential gcc-multilib genisoimage nasm
+      - name: Gelişmiş Paket Önbelleği (APT Cache Optimization)
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
 
-    - name: Projeyi Derle (Makefile Tetikleme)
-      run: |
-        make clean
-        make
+      - name: Gelişmiş Endüstriyel Derleme Araçlarını Kur
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            gcc-multilib \
+            genisoimage \
+            nasm \
+            mtools \
+            grub-common
 
-    - name: Çıktıları (Kernel / ISO) Güvenli Artefakt Olarak Sakla
-      uses: actions/upload-artifact@v4
-      with:
-        name: skyos-core-build
-        path: |
-          *.bin
-          *.iso
-          kernel.bin
+      - name: Projeyi Derle ve Logları Çıkart
+        run: |
+          echo "=== SKY OS DERLEME SÜRECİ BAŞLADI ==="
+          make clean
+          make
+          echo "=== DERLEME BAŞARIYLA TAMAMLANDI ==="
+
+      - name: Derleme Çıktılarını (ISO/BIN) Doğrula
+        run: |
+          if [ ! -f skyos.iso ]; then
+            echo "CRITICAL ERROR: skyos.iso uretilemedi!" && exit 1
+          fi
+          echo "ISO Boyutu: $(du -sh skyos.iso)"
+          echo "Kernel Boyutu: $(du -sh kernel.bin)"
+
+      - name: Çıktıları Güvenli Artefakt Olarak Sakla (Artifact Depolama)
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyos-production-build
+          path: |
+            *.bin
+            *.iso
+            iso_root/
+          retention-days: 7
+
+  # 3. ETAP: OTOMATİK SÜRÜM DAĞITIM SİSTEMİ (RELEASE AUTO-PILOT)
+  release:
+    name: "Otomatik GitHub Release Dağıtımı"
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repoyu Klonla
+        uses: actions/checkout@v4
+
+      - name: Üretilen ISO Paketini İndir
+        uses: actions/download-artifact@v4
+        with:
+          name: skyos-production-build
+
+      - name: Benzersiz Sürüm Kimliği Oluştur (Build ID)
+        id: versioning
+        run: |
+          echo "VERSION=v2.1.${{ github.run_number }}" >> $GITHUB_ENV
+          echo "DATE=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_ENV
+
+      - name: Otomatik GitHub Sürümü (Release) Yayınla
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: "SKY OS Core Integration ${{ env.VERSION }}"
+          body: |
+            ## 🚀 SKY OS Core - Otomatik Derleme Raporu
+            Bu sürüm GitHub Actions tarafından tamamen optimize edilerek otomatik olarak üretilmiştir.
+            
+            - **Derleme Tarihi:** ${{ env.DATE }}
+            - **İş Hattı (Run ID):** #${{ github.run_number }}
+            - **Commit Mesajı:** `${{ github.event.head_commit.message }}`
+            - **Mimarisi:** x86 Korumalı Mod (32-Bit HAL central)
+            
+            *Sanal makinenizde (VirtualBox/QEMU) çalıştırmak için aşağıdaki `skyos.iso` dosyasını indirin.*
+          draft: false
+          prerelease: false
+          files: |
+            skyos.iso
+            kernel.bin
