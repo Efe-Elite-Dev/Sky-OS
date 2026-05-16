@@ -1,31 +1,49 @@
-#include "ai_subsystem.h"
+#include "sky_subsystem.h"
 
-int sky_ai_analyze_intent(uint32_t input_hash) {
-    if (input_hash % 3 == 0) return 1; 
-    if (input_hash % 3 == 1) return 2; 
-    return 0; 
+// Dışarıdaki ekran değişkenlerine erişim köprüsü
+extern uint32_t* vbe_vram;
+extern uint32_t  vbe_pitch;
+
+// Yapay zekanın siber hafızası
+static int ai_error_history[10] = {0};
+static int ai_self_repair_count = 0;
+
+// Sinir ağı ağırlıkları
+static const int ai_weights[2] = {3, -2}; 
+static const int ai_bias = 5;
+
+/**
+ * MİKRO SİNİR AĞI: kernel.c'nin aradığı o fonksiyon!
+ */
+int ai_predict_hardware_load(int mouse_delta_x, int loop_count) {
+    int score = (mouse_delta_x * ai_weights[0]) + (loop_count * ai_weights[1]) + ai_bias;
+    if (score < 0) {
+        return 1; // Sistem zorlanıyor
+    }
+    return 0; // Sistem rahat
 }
 
-void run_ai_core_render(int win_x, int win_y, uint32_t current_tick, int intent) {
-    gui_draw_rect(win_x + 20, win_y + 110, 460, 220, 0x1E1B4B); 
+/**
+ * SELF-HEALING MOTORU: deb_subsystem.c'nin aradığı o fonksiyon!
+ */
+void ai_detect_and_self_repair(uint32_t fault_address, int error_code) {
+    int log_index = ai_self_repair_count % 10;
+    ai_error_history[log_index] = error_code;
+    ai_self_repair_count++;
 
-    int pulse = (current_tick / 5) % 8;
-    
-    if (intent == 1) {
-        for (int i = 0; i < 4; i++) {
-            gui_draw_rect(win_x + 40 + (i * 100), win_y + 150 + (pulse * 2), 80, 20, 0x10B981);
+    if (error_code == 139 || error_code == -1) {
+        uint8_t* repair_target = (uint8_t*)(uintptr_t)fault_address;
+        if (repair_target != 0) {
+            *repair_target = 0xC3; // Canlı x86 RET yama kodu yazıldı!
         }
-    } 
-    else if (intent == 2) {
-        for (int i = 0; i < 6; i++) {
-            gui_draw_rect(win_x + 60 + (i * 60) + pulse, win_y + 180 - (i * 5), 15, 15, 0x06B6D4); 
-        }
-    } 
-    else {
-        for (int i = 0; i < 10; i++) {
-            int wave_height = 20 + (i * pulse) % 50;
-            if (wave_height > 80) wave_height = 80;
-            gui_draw_rect(win_x + 50 + (i * 40), win_y + 240 - wave_height, 15, wave_height, 0x8B5CF6); 
+        
+        // Başarılı tamir sinyali olarak sol üst köşeye kırmızı nokta çiz
+        if (vbe_vram != 0) {
+            for (int y = 0; y < 20; y++) {
+                for (int x = 0; x < 20; x++) {
+                    vbe_vram[y * (vbe_pitch / 4) + x] = 0xFF0000;
+                }
+            }
         }
     }
 }
